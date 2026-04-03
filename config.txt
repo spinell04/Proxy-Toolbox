@@ -1,0 +1,10 @@
+# ─── Proxy Tools Config ───────────────────────────────
+# Number of parallel workers
+workers=100
+
+# Default domain for proxyPinger (optional)
+# Use exactly the format you want to test:
+#   google.com          -> TCP connect only
+#   http://google.com   -> full HTTP request
+#   https://google.com  -> full HTTPS request
+domain=google.com
