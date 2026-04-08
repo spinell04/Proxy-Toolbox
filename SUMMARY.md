@@ -1,0 +1,18 @@
+# Table of contents
+
+* [Proxy Toolbox](README.md)
+* [Welcome](docs/README.md)
+  * [Getting Started](docs/getting-started/README.md)
+    * [Configuration](docs/getting-started/configuration.md)
+    * [Installation](docs/getting-started/installation.md)
+    * [Proxy Formats](docs/getting-started/proxy-formats.md)
+  * [Tools](docs/tools/README.md)
+    * [IP Uniqueness Test](docs/tools/ip-uniqueness-test.md)
+    * [Ping Test](docs/tools/ping-test.md)
+    * [Proxy Parser](docs/tools/proxy-parser.md)
+    * [Randomize File](docs/tools/randomize-file.md)
+    * [TM Request Tester](docs/tools/tm-request-tester.md)
+  * [Reference](docs/reference/README.md)
+    * [Building from Source](docs/reference/building-from-source.md)
+    * [Exporting Results](docs/reference/exporting-results.md)
+  * [Troubleshooting](docs/troubleshooting.md)
