@@ -1,6 +1,6 @@
-# Proxy Toolbox
+# Welcome
 
-A CLI toolbox for testing, analyzing, and managing proxy lists — with interactive arrow-key menus and cross-platform binaries.
+**Proxy Toolbox** is a CLI toolbox for testing, analyzing, and managing proxy lists — with interactive arrow-key menus and cross-platform binaries.
 
 ## What it does
 
