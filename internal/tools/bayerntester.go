@@ -7,103 +7,14 @@ import (
 	"sync"
 	"time"
 
-	fhttp "github.com/bogdanfinn/fhttp"
-	tlsclient "github.com/bogdanfinn/tls-client"
-	"github.com/bogdanfinn/tls-client/profiles"
-	"github.com/charmbracelet/huh"
-
 	"proxytoolbox/internal/config"
 	"proxytoolbox/internal/proxy"
 	"proxytoolbox/internal/util"
 )
 
-const (
-	speedUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
-)
+const bayernURL = "https://fcbayern.com/de/tickets"
 
-var tmRegions = []struct {
-	Code string
-	Name string
-	URL  string
-}{
-	{"US", "United States", "https://www.ticketmaster.com"},
-	{"UK", "United Kingdom", "https://www.ticketmaster.co.uk"},
-	{"ES", "Spain", "https://www.ticketmaster.es"},
-	{"DE", "Germany", "https://www.ticketmaster.de"},
-	{"NL", "Netherlands", "https://www.ticketmaster.nl"},
-	{"CA", "Canada", "https://www.ticketmaster.ca"},
-	{"MX", "Mexico", "https://www.ticketmaster.com.mx"},
-}
-
-type speedResult struct {
-	Index   int
-	Proxy   string
-	Latency time.Duration
-	Status  int
-	Err     error
-}
-
-func testSingleProxy(index int, proxyURL, targetURL string) speedResult {
-	opts := []tlsclient.HttpClientOption{
-		tlsclient.WithTimeoutSeconds(15),
-		tlsclient.WithClientProfile(profiles.Chrome_133),
-	}
-	if proxyURL != "" {
-		opts = append(opts, tlsclient.WithProxyUrl(proxyURL))
-	}
-	client, err := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(), opts...)
-	if err != nil {
-		return speedResult{Index: index, Proxy: proxyURL, Err: fmt.Errorf("client: %v", err)}
-	}
-
-	req, err := fhttp.NewRequest(fhttp.MethodGet, targetURL, nil)
-	if err != nil {
-		return speedResult{Index: index, Proxy: proxyURL, Err: fmt.Errorf("request: %v", err)}
-	}
-	req.Header.Set("User-Agent", speedUA)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Sec-CH-UA", `"Chromium";v="133", "Not(A:Brand";v="99", "Google Chrome";v="133"`)
-	req.Header.Set("Sec-CH-UA-Mobile", "?0")
-	req.Header.Set("Sec-CH-UA-Platform", `"macOS"`)
-	req.Header.Set("Sec-Fetch-Dest", "document")
-	req.Header.Set("Sec-Fetch-Mode", "navigate")
-	req.Header.Set("Sec-Fetch-Site", "none")
-	req.Header[fhttp.HeaderOrderKey] = []string{
-		"accept", "accept-encoding", "accept-language",
-		"sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
-		"sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
-		"user-agent",
-	}
-	req.Header[fhttp.PHeaderOrderKey] = []string{":method", ":authority", ":scheme", ":path"}
-
-	start := time.Now()
-	resp, err := client.Do(req)
-	elapsed := time.Since(start)
-	if err != nil {
-		return speedResult{Index: index, Proxy: proxyURL, Latency: elapsed, Err: err}
-	}
-	resp.Body.Close()
-	return speedResult{Index: index, Proxy: proxyURL, Latency: elapsed, Status: resp.StatusCode}
-}
-
-func RunSpeedTester() {
-	var regionIdx int
-	var options []huh.Option[int]
-	for i, r := range tmRegions {
-		options = append(options, huh.NewOption(fmt.Sprintf("%s (%s)", r.Name, r.URL), i))
-	}
-	err := huh.NewSelect[int]().
-		Title("Select a region").
-		Options(options...).
-		Value(&regionIdx).
-		Run()
-	if err != nil {
-		fmt.Println("Selection cancelled.")
-		return
-	}
-	region := tmRegions[regionIdx]
-
+func RunBayernTester() {
 	cfg := config.Load()
 
 	filePath, err := proxy.SelectFile()
@@ -130,8 +41,7 @@ func RunSpeedTester() {
 	}
 
 	fmt.Printf("\n─────────────────────────────────────────────────────────────\n")
-	fmt.Printf("  Region  : %s (%s)\n", region.Name, region.Code)
-	fmt.Printf("  Target  : %s\n", region.URL)
+	fmt.Printf("  Target  : %s\n", bayernURL)
 	fmt.Printf("  Proxies : %d\n", len(proxies))
 	fmt.Printf("  Workers : %d\n", cfg.Workers)
 	fmt.Printf("  TLS     : Chrome 133 (tlsclient)\n")
@@ -154,7 +64,7 @@ func RunSpeedTester() {
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				r := testSingleProxy(i, proxies[i].URL(), region.URL)
+				r := testSingleProxy(i, proxies[i].URL(), bayernURL)
 				r.Proxy = proxies[i].Host
 				resultsCh <- r
 			}
@@ -176,7 +86,7 @@ func RunSpeedTester() {
 	var okLatencies []time.Duration
 	var csvRows [][]string
 	var savedLines []string
-	maxMs := cfg.TMMaxLatencyMs
+	maxMs := cfg.BayernMaxLatencyMs
 
 	for r := range resultsCh {
 		display := r.Proxy
@@ -236,7 +146,7 @@ func RunSpeedTester() {
 		fmt.Printf("  Slowest        : %dms\n", slowest.Milliseconds())
 	}
 
-	if path := util.PromptExport("speedtest"); path != "" {
+	if path := util.PromptExport("bayerntest"); path != "" {
 		var summary [][]string
 		summary = append(summary, []string{"Total proxies", fmt.Sprintf("%d", len(proxies))})
 		summary = append(summary, []string{"Working", fmt.Sprintf("%d", okCount)})

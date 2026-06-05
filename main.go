@@ -20,6 +20,8 @@ func main() {
 				huh.NewOption("TM Request Tester  — Test proxy speed with a full request to Ticketmaster", "speedtester"),
 				huh.NewOption("Randomize File     — Shuffle proxy order in a file", "randomizer"),
 				huh.NewOption("Proxy Parser       — Convert proxy format in a file", "parser"),
+				huh.NewOption("Bayern Tester      — Direct request testing to fcbayern.com/de/tickets", "bayern"),
+				huh.NewOption("Proxy Monitor      — Continuous monitoring with alerts", "monitor"),
 				huh.NewOption("Exit", "exit"),
 			).
 			Value(&choice).
@@ -42,6 +44,10 @@ func main() {
 			tools.RunRandomizer()
 		case "parser":
 			tools.RunParser()
+		case "bayern":
+			tools.RunBayernTester()
+		case "monitor":
+			tools.RunMonitor()
 		case "exit":
 			fmt.Println("Bye.")
 			return

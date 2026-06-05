@@ -57,6 +57,8 @@ Proxy Toolbox
   TM Request Tester  — Test proxy speed with a full request to Ticketmaster
   Randomize File     — Shuffle proxy order in a file
   Proxy Parser       — Convert proxy format in a file
+  Bayern Tester      — Direct request testing to fcbayern.com/de/tickets
+  Proxy Monitor      — Continuous monitoring with alerts
   Exit
 ```
 

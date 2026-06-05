@@ -11,19 +11,41 @@ import (
 )
 
 const (
-	fileName       = "config.txt"
-	DefaultWorkers = 20
+	fileName             = "config.txt"
+	DefaultWorkers       = 20
+	DefaultDownThreshold = 3
+	DefaultUpThreshold   = 2
 )
 
 // Config holds settings from config.txt.
 type Config struct {
-	Workers int
-	Domain  string
+	Workers              int
+	Domain               string
+	DiscordWebhook       string
+	DiscordDownThreshold int
+	DiscordUpThreshold   int
+	PingMaxLatencyMs     int
+	TMMaxLatencyMs       int
+	BayernMaxLatencyMs   int
+}
+
+// parseLatency returns a positive millisecond threshold, or 0 (no filter) for
+// blank or invalid input.
+func parseLatency(val string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(val))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }
 
 // Load reads config.txt and returns the parsed Config.
 func Load() Config {
-	cfg := Config{Workers: DefaultWorkers}
+	cfg := Config{
+		Workers:              DefaultWorkers,
+		DiscordDownThreshold: DefaultDownThreshold,
+		DiscordUpThreshold:   DefaultUpThreshold,
+	}
 	path := basedir.Path(fileName)
 
 	f, err := os.Open(path)
@@ -52,6 +74,22 @@ func Load() Config {
 			}
 		case "domain":
 			cfg.Domain = val
+		case "discord_webhook":
+			cfg.DiscordWebhook = val
+		case "discord_down_threshold":
+			if n, err := strconv.Atoi(val); err == nil && n > 0 {
+				cfg.DiscordDownThreshold = n
+			}
+		case "discord_up_threshold":
+			if n, err := strconv.Atoi(val); err == nil && n > 0 {
+				cfg.DiscordUpThreshold = n
+			}
+		case "ping_max_latency_ms":
+			cfg.PingMaxLatencyMs = parseLatency(val)
+		case "tm_max_latency_ms":
+			cfg.TMMaxLatencyMs = parseLatency(val)
+		case "bayern_max_latency_ms":
+			cfg.BayernMaxLatencyMs = parseLatency(val)
 		}
 	}
 	return cfg

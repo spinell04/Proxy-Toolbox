@@ -1,2 +1,3 @@
 proxyfiles/*.txt
 results/*.csv
+results/*.log

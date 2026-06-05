@@ -14,6 +14,7 @@ type Proxy struct {
 	Port     string
 	User     string
 	Password string
+	Raw      string // verbatim source line (trimmed)
 }
 
 // URL returns the proxy as an http://user:pass@host:port URL.
@@ -49,6 +50,7 @@ func ParseLine(line string) (Proxy, bool) {
 			Port:     u.Port(),
 			User:     u.User.Username(),
 			Password: pass,
+			Raw:      line,
 		}, true
 	}
 
@@ -65,6 +67,7 @@ func ParseLine(line string) (Proxy, bool) {
 			Port:     parts[3],
 			User:     parts[0],
 			Password: parts[1],
+			Raw:      line,
 		}, true
 	}
 
@@ -74,6 +77,7 @@ func ParseLine(line string) (Proxy, bool) {
 		Port:     parts[1],
 		User:     parts[2],
 		Password: parts[3],
+		Raw:      line,
 	}, true
 }
 

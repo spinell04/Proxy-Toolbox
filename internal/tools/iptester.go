@@ -129,7 +129,10 @@ func RunIPTester() {
 	ipLines := make(map[string][]int)
 	errors := 0
 
+	var ipResults []ipResult
 	for r := range results {
+		ipResults = append(ipResults, r)
+
 		display := r.Host
 		if len(display) > 22 {
 			display = display[:19] + "..."
@@ -217,6 +220,16 @@ func RunIPTester() {
 			fmt.Printf("Error saving: %v\n", err)
 		} else {
 			fmt.Printf("Saved to %s\n", path)
+		}
+	}
+
+	if lines := dedupByIP(ipResults, proxies); len(lines) > 0 {
+		if path := util.PromptProxyFile("unique exit IPs"); path != "" {
+			if err := util.WriteLines(path, lines); err != nil {
+				fmt.Printf("Error saving proxies: %v\n", err)
+			} else {
+				fmt.Printf("Saved %d unique-IP proxies to %s\n", len(lines), path)
+			}
 		}
 	}
 }

@@ -74,3 +74,13 @@ Repeated IP,Times,Lines
 ```
 
 Files are saved to `results/` next to the binary. See [Exporting Results](../reference/exporting-results.md) for details.
+
+## Saving unique proxies
+
+After the CSV prompt, IP Uniqueness Test offers to save a **deduplicated** proxy list to a `.txt` in `proxyfiles/`:
+
+- One proxy is kept per distinct exit IP — the **first** one seen wins.
+- Duplicate-IP proxies and any that errored are dropped.
+- There's no latency threshold for this tool; the filter is purely "unique exit IP".
+
+The result is a clean list with no redundant exits, written in the original line format and ready to reuse. See [Exporting Results → Saving filtered proxies](../reference/exporting-results.md#saving-filtered-proxies).

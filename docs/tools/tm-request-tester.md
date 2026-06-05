@@ -83,3 +83,13 @@ Slowest,3500ms
 ```
 
 See [Exporting Results](../reference/exporting-results.md).
+
+## Saving fast proxies
+
+After the CSV prompt, TM Request Tester offers to save the **working** proxies to a `.txt` in `proxyfiles/`, filtered by latency. The threshold comes from `tm_max_latency_ms` in [`config.txt`](../getting-started/configuration.md):
+
+- Only `200 OK` proxies are considered (errors and `403 BLOCKED` are dropped).
+- A proxy is saved if its latency is **below** `tm_max_latency_ms`.
+- Leave the key blank (or `0`/invalid) to disable the filter — every working proxy is saved.
+
+Proxies are written in their original line format. See [Exporting Results → Saving filtered proxies](../reference/exporting-results.md#saving-filtered-proxies).

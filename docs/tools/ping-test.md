@@ -71,3 +71,13 @@ Average latency,384ms
 ```
 
 See [Exporting Results](../reference/exporting-results.md) for details.
+
+## Saving fast proxies
+
+After the CSV prompt, Ping Test offers to save the **successful** proxies to a `.txt` in `proxyfiles/`, filtered by latency. The threshold comes from `ping_max_latency_ms` in [`config.txt`](../getting-started/configuration.md):
+
+- Only proxies that responded (no error) are considered.
+- A proxy is saved if its latency is **below** `ping_max_latency_ms`.
+- Leave the key blank (or `0`/invalid) to disable the filter — every successful proxy is saved.
+
+Proxies are written in their original line format. See [Exporting Results → Saving filtered proxies](../reference/exporting-results.md#saving-filtered-proxies).

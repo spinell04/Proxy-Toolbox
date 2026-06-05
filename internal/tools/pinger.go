@@ -27,7 +27,7 @@ type pingResult struct {
 }
 
 func pingRawTCP(index int, p proxy.Proxy, host string) pingResult {
-	proxyAddr := fmt.Sprintf("%s:%s", p.Host, p.Port)
+	proxyAddr := net.JoinHostPort(p.Host, p.Port)
 	target := host + ":80"
 
 	start := time.Now()
@@ -96,7 +96,7 @@ func RunPinger() {
 	if cfg.Domain != "" {
 		fmt.Printf(", domain=%s", cfg.Domain)
 	}
-	fmt.Println("\n")
+	fmt.Print("\n\n")
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -187,6 +187,8 @@ func RunPinger() {
 	errors := 0
 	success := 0
 	var csvRows [][]string
+	var savedLines []string
+	maxMs := cfg.PingMaxLatencyMs
 
 	for r := range results {
 		display := r.Host
@@ -204,6 +206,9 @@ func RunPinger() {
 
 		totalLatency += r.Latency
 		success++
+		if passLatency(r.Latency.Milliseconds(), maxMs) {
+			savedLines = append(savedLines, proxies[r.Index].Raw)
+		}
 		status := "OK"
 		if r.Status > 0 {
 			status = fmt.Sprintf("HTTP %d", r.Status)
@@ -244,6 +249,20 @@ func RunPinger() {
 			fmt.Printf("Error saving: %v\n", err)
 		} else {
 			fmt.Printf("Saved to %s\n", path)
+		}
+	}
+
+	if len(savedLines) > 0 {
+		label := "no latency limit"
+		if maxMs > 0 {
+			label = fmt.Sprintf("latency < %dms", maxMs)
+		}
+		if path := util.PromptProxyFile(label); path != "" {
+			if err := util.WriteLines(path, savedLines); err != nil {
+				fmt.Printf("Error saving proxies: %v\n", err)
+			} else {
+				fmt.Printf("Saved %d proxies to %s\n", len(savedLines), path)
+			}
 		}
 	}
 }

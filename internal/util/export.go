@@ -26,9 +26,13 @@ func PromptExport(defaultName string) string {
 	if !strings.HasSuffix(strings.ToLower(input), ".csv") {
 		input += ".csv"
 	}
+	input = filepath.Base(input) // strip any directory components (path traversal)
 
 	dir := basedir.Path(resultsDir)
-	os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		fmt.Printf("Error creating results/ directory: %v\n", err)
+		return ""
+	}
 	return filepath.Join(dir, input)
 }
 

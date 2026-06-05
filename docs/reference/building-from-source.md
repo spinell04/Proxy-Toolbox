@@ -58,7 +58,7 @@ Proxy-Toolbox/
 │   ├── basedir/               # Resolves binary's own directory
 │   ├── config/                # config.txt loader
 │   ├── proxy/                 # Parse + file selection
-│   ├── tools/                 # The 5 tools
+│   ├── tools/                 # The 7 tools
 │   └── util/                  # Colors, export, error helpers
 ├── go.mod
 └── go.sum

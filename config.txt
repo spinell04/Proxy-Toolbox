@@ -8,3 +8,19 @@ workers=100
 #   http://google.com   -> full HTTP request
 #   https://google.com  -> full HTTPS request
 domain=google.com
+
+# Discord webhook URL for monitor alerts (leave empty to disable)
+discord_webhook=
+
+# Consecutive proxy-check failures (across the whole fleet) before sending a DOWN alert (default 3)
+discord_down_threshold=3
+
+# Consecutive proxy-check successes (across the whole fleet) before sending a RECOVERED alert (default 2)
+discord_up_threshold=2
+
+# ─── Save-proxy latency filters (ms) ─────────────────
+# When saving filtered proxies to proxyfiles/, keep only proxies under this
+# latency. Blank / invalid / 0 = no filter (save all successful proxies).
+ping_max_latency_ms=
+tm_max_latency_ms=
+bayern_max_latency_ms=
