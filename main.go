@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 
+	"proxytoolbox/internal/basedir"
+	"proxytoolbox/internal/bootstrap"
 	"proxytoolbox/internal/dashboard"
 	"proxytoolbox/internal/tools"
 )
@@ -71,6 +74,21 @@ func monitorMenu() bool {
 }
 
 func main() {
+	// The binary ships on its own and is dropped into an empty folder, so the
+	// layout it expects has to appear before the first menu. Reported rather
+	// than silent: files turning up next to the executable should be something
+	// the user was told about, not something they discover later.
+	if created, err := bootstrap.Ensure(); err != nil {
+		fmt.Println("Setup error:", err)
+		os.Exit(1)
+	} else if len(created) > 0 {
+		// Name the directory rather than saying "next to the binary": under
+		// `go run` the binary lives in Go's build cache and these land in the
+		// working directory instead, so that phrasing would point at the
+		// wrong place in exactly the case a developer is looking.
+		fmt.Printf("Created %s in %s\n\n", strings.Join(created, ", "), basedir.Root)
+	}
+
 	for {
 		var choice string
 		err := huh.NewSelect[string]().

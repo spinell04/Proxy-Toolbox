@@ -1,3 +1,10 @@
 proxyfiles/*.txt
 results/*.csv
 results/*.log
+
+# Your live settings, including the Discord webhook, which is a bearer
+# credential. The tracked template is internal/bootstrap/config.default.txt,
+# and the binary writes this file on first run.
+config.txt
+
+.DS_Store

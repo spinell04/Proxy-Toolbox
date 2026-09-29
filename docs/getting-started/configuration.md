@@ -2,6 +2,28 @@
 
 All settings live in `config.txt` next to the binary. If the file is missing, defaults are used and a warning is printed.
 
+## Where config.txt lives, and why it is not in git
+
+`config.txt` sits **beside the executable** and is written on first run from a template compiled into the binary. It is listed in `.gitignore`.
+
+That is not tidiness. `discord_webhook` is a **bearer credential**: anyone holding the URL can post to your channel. A credential in a commit is permanent — rewriting history does not un-leak it, because the commit may already have been cloned, forked or mirrored.
+
+| | |
+|---|---|
+| `config.txt` | Your live settings. Gitignored. Written on first run, never overwritten — not by a later run, not by an upgrade. |
+| `internal/bootstrap/config.default.txt` | The tracked template compiled into the binary. Credentials ship blank; every other key ships its built-in default. |
+
+**Every change to the config must land in both.** A key added to the parser without a line in the template is invisible to new installs — and invisible in testing too, because your own `config.txt` already exists and is never rewritten. See [Changing a config key](../reference/building-from-source.md#changing-a-config-key); three tests enforce it.
+
+Two guards keep it that way:
+
+* **`scripts/pre-commit`** blocks a commit whose staged files contain a webhook-shaped URL. Install it with `ln -sf ../../scripts/pre-commit .git/hooks/pre-commit`.
+* **`TestNoCredentialsInTrackedFiles`** scans every file git actually tracks, so it catches a secret committed *before* the hook was installed — the case the hook cannot see.
+
+> **`.gitignore` has no effect on a file that is already tracked.** Adding a name to `.gitignore` after the fact does not stop it being committed; `git rm --cached <file>` does. This is why the test asks git for the tracked set rather than walking the directory.
+
+If a credential does reach a commit, **rotate it**. Deleting the line is housekeeping; rotating is the only step that revokes access.
+
 ## Example
 
 ```

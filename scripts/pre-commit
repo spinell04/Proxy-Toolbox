@@ -1,0 +1,50 @@
+#!/bin/sh
+# Blocks a commit that would add a bearer credential.
+#
+# Install:  ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+# Bypass:   git commit --no-verify   (you had better be sure)
+#
+# This is the fast guard. The thorough one is
+# internal/bootstrap/secrets_test.go, which scans every tracked file rather
+# than only the staged ones, and which catches a secret that was committed
+# before this hook was installed.
+
+set -e
+
+patterns='discord(app)?\.com/api/webhooks/[0-9]+/[^ "'"'"']+
+hooks\.slack\.com/services/[^ "'"'"']+
+api\.telegram\.org/bot[0-9]+:[^ "'"'"']+'
+
+found=0
+for file in $(git diff --cached --name-only --diff-filter=ACM); do
+	case "$file" in
+		*.exe|*.png|*.jpg|*.gif|*.ico|*.pdf|*.woff|*.woff2) continue ;;
+	esac
+	[ -f "$file" ] || continue
+
+	echo "$patterns" | while IFS= read -r p; do
+		[ -n "$p" ] || continue
+		if git show ":$file" 2>/dev/null | grep -nEq "$p"; then
+			echo "BLOCKED: $file contains what looks like a credential." >&2
+			git show ":$file" | grep -nE "$p" | head -3 >&2
+			exit 1
+		fi
+	done || found=1
+done
+
+if [ "$found" = 1 ]; then
+	cat >&2 <<'MSG'
+
+A staged file carries a bearer credential. Anyone holding that string has the
+access it grants, and a commit is forever: rewriting history later does not
+un-leak it.
+
+  - Settings belong in config.txt, which is gitignored.
+  - The tracked template is internal/bootstrap/config.default.txt and must
+    ship every value blank.
+  - If it is already committed, rotate the credential. That is the only step
+    that revokes anything.
+
+MSG
+	exit 1
+fi

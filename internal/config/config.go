@@ -12,7 +12,7 @@ import (
 
 const (
 	fileName             = "config.txt"
-	DefaultWorkers       = 20
+	DefaultWorkers       = 100
 	DefaultDownThreshold = 3
 	DefaultUpThreshold   = 2
 
@@ -24,6 +24,16 @@ const (
 	DefaultMonitorIntervalMs = 1000
 	DefaultSessionIntervalMs = 60000
 )
+
+// ─────────────────────────────────────────────────────────────────────────
+// Adding or renaming a key here?  Update internal/bootstrap/config.default.txt
+// in the same change.  That template is what every new install receives, and a
+// key missing from it is a setting nobody can discover: it will not appear in
+// their config.txt, and most users never read the docs.
+//
+// TestDefaultConfig_CoversEveryKeyTheParserKnows and
+// TestDefaultConfig_MatchesTheBuiltInDefaults enforce both halves of this.
+// ─────────────────────────────────────────────────────────────────────────
 
 // Config holds settings from config.txt.
 type Config struct {

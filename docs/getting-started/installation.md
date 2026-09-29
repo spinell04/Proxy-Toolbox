@@ -48,6 +48,24 @@ From a terminal:
 
 Or on Windows, double-click `proxytoolbox.exe`.
 
+On first run the toolbox creates what it needs and names the directory it used:
+
+```
+Created proxyfiles/, results/, config.txt in /Users/you/proxy-toolbox
+```
+
+| Created | Purpose |
+|---|---|
+| `proxyfiles/` | Your proxy lists. Put `.txt` files here — every tool reads its input from this folder. |
+| `results/` | Exported CSVs and monitor logs. |
+| `config.txt` | Settings, fully commented. See [Configuration](configuration.md). |
+
+Anything already present is left alone: **`config.txt` is never overwritten**, so your settings survive every later run and every upgrade. Later runs print nothing.
+
+Paths resolve against the **executable's own folder**, not the shell's working directory, so a binary behaves the same double-clicked or run from a terminal.
+
+Building from source is the one exception: under `go run .` the binary lives in Go's build cache, so the toolbox falls back to the **working directory** instead. The startup line names whichever it used, so there is no guessing.
+
 You'll land on the main menu:
 
 ```

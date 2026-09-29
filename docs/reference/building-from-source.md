@@ -65,3 +65,37 @@ Proxy-Toolbox/
 ├── go.mod
 └── go.sum
 ```
+
+## Changing a config key
+
+`config.txt` is **generated**, not tracked. It is written beside the binary on
+first run from `internal/bootstrap/config.default.txt`, which is compiled in
+with `go:embed`.
+
+So a config change is two edits, always:
+
+| Edit | File |
+|---|---|
+| Parse the key | `internal/config/config.go` — the `switch` in `Load`, plus a `Default*` constant if it has one |
+| Ship the key | `internal/bootstrap/config.default.txt` — same key, same default value |
+
+**Skipping the second is invisible in testing and broken in the field.** Your
+own `config.txt` already exists and is never rewritten, so a missing template
+line changes nothing locally — but every new install gets a config with no
+line for that setting, and most users never read the docs to find out it
+exists.
+
+Three tests make this mechanical rather than a matter of memory:
+
+* `TestDefaultConfig_CoversEveryKeyTheParserKnows` — fails if the parser
+  understands a key the template does not mention. It reads the keys out of
+  `config.go` itself rather than a hand-kept list, because a hand-kept list
+  drifts exactly the way the template would.
+* `TestDefaultConfig_MatchesTheBuiltInDefaults` — fails if a template value
+  disagrees with its `Default*` constant, in either direction. These had
+  already diverged once: `workers` shipped as 100 in the template while
+  `DefaultWorkers` was 20, so the same binary ran at five times the
+  concurrency depending only on whether a file happened to exist beside it.
+* `TestDefaultConfig_ShipsNoCredential` — fails if any key in the template
+  ships a non-empty URL or credential. The template is compiled into every
+  binary you hand out.
