@@ -1,0 +1,331 @@
+/*
+  Compare dashboard — the cross-tool view.
+
+  The same Swiss instrument-panel direction as the rest of the page: no card,
+  no shadow, no radius, and structure carried by hairline rules and the space
+  between things. What this view adds to that vocabulary is two shapes — a
+  measured bar and a tinted matrix cell — both built from tokens that already
+  exist rather than from a new palette. The form controls the panels are
+  operated with live in controls.css.
+
+  The matrix tint is the one place colour lands behind a figure. It is always
+  a wash under --ink, never a coloured foreground, so every cell keeps the same
+  measured contrast the rest of the table has; the outcome is written in the
+  cell as a word, so the tint is reinforcement and never the only channel.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; hairline
+  widths, the bar geometry and the breakpoint are literal sizes, and tokens.css
+  says why. Motion is `transform` only.
+*/
+
+/* ── Coverage strip ───────────────────────────────────────────────────── */
+
+/* The paired view names two runs; this one names up to fifty, so the pair's
+   two-column strip becomes a track that wraps. The list numbering is dropped
+   because the order is already carried by the funnel below, where it means
+   something — here it would read as a ranking. */
+.coverage__runs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--gap);
+  margin: var(--gap) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coverage__tool {
+  margin: 0;
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.coverage__file {
+  margin: 0;
+  font-size: var(--text-micro);
+  overflow-wrap: anywhere;
+}
+
+.coverage__meta {
+  margin: var(--gap-hair) 0 0;
+  font-size: var(--text-small);
+}
+
+/* ── Matrix ───────────────────────────────────────────────────────────── */
+
+.matrix__status {
+  margin: 0 0 var(--gap-tight);
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+/* The matrix is the densest table on the page and is often fifty columns
+   wide, so it gets a taller viewport than the other panel tables. */
+.vtable {
+  max-height: min(64vh, 34rem);
+}
+
+.vtable__table {
+  /* Fixed row heights are what the windowing arithmetic in vtable.js measures
+     once and then trusts; a cell that wraps would desynchronise the spacers
+     from the rows they stand in for. */
+  white-space: nowrap;
+}
+
+/* The second header line, taken only by a column whose tool name repeats in
+   the selection. Lower case and untracked so it reads as the run's identity
+   under the tool's label rather than as a second label; it inherits the sort
+   button's colour, which is measured against the header's opaque field. */
+.th-sub {
+  display: block;
+  margin-top: 0.15em;
+  font-size: var(--text-micro);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.vtable__spacer td {
+  padding: 0;
+  border: 0;
+}
+
+.vtable thead th {
+  background: var(--field);
+}
+
+/* A cell's tint is a wash *behind* --ink, at an intensity set by the run's own
+   p90. The ceiling is deliberately low: the figure has to keep its contrast,
+   and the tint only has to be seen, not read. */
+.cell {
+  background: color-mix(in oklch, var(--tint) calc(var(--v, 0) * 26%), transparent);
+}
+
+.cell--blocked,
+.cell--error {
+  background: color-mix(in oklch, var(--tint) 20%, transparent);
+}
+
+.cell--absent {
+  color: var(--ink-faint);
+}
+
+.cohort-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+
+.cohort-cell__sub {
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+/* ── Funnel ───────────────────────────────────────────────────────────── */
+
+.funnel__lead {
+  margin: 0 0 var(--gap);
+  max-width: 62ch;
+  color: var(--ink-muted);
+}
+
+.funnel__lead strong {
+  font-size: var(--text-lead);
+  color: var(--ink);
+  letter-spacing: var(--track-tight);
+}
+
+.funnel {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 68ch;
+}
+
+.funnel__step {
+  padding-block: var(--gap-tight);
+  border-top: 1px solid var(--rule-hair);
+}
+
+.funnel__step--seed {
+  border-top: 2px solid var(--rule-heavy);
+}
+
+.funnel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 0 0 var(--gap-hair);
+}
+
+.funnel__name {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.funnel__count {
+  font-size: var(--text-lead);
+  letter-spacing: var(--track-tight);
+}
+
+.funnel__track {
+  display: block;
+  height: 6px;
+  background: var(--field-sunk);
+}
+
+.funnel__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(var(--v, 0));
+  transition: transform var(--dur) var(--ease);
+}
+
+/* The seed bar is the 100% reference, not a measurement, so it is set in ink
+   rather than in the accent — the accent marks the steps that moved. It is
+   still a bar a reader compares the others against, so it takes --rule-heavy
+   and clears 3:1 against its track; --rule-mid, which reads correctly as page
+   furniture, measured 1.97:1 there and does not. */
+.funnel__step--seed .funnel__fill {
+  background: var(--rule-heavy);
+}
+
+.funnel__note {
+  margin: var(--gap-hair) 0 0;
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+/* ── Set operations ───────────────────────────────────────────────────── */
+
+.setops__result {
+  margin-bottom: var(--gap-tight);
+}
+
+.figure-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-tight);
+  margin: 0;
+}
+
+.figure-line__value {
+  font-size: var(--text-title);
+  line-height: 1;
+  letter-spacing: var(--track-tight);
+}
+
+.figure-line__caption {
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+.setops__describe {
+  margin: var(--gap-hair) 0 0;
+  max-width: 56ch;
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+.setops__preview {
+  margin: var(--gap) 0 0;
+  padding: var(--gap-tight) var(--gap);
+  border-left: 3px solid var(--rule-mid);
+  background: var(--field-sunk);
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+  max-width: 68ch;
+}
+
+.setops__actions {
+  margin: var(--gap) 0 0;
+}
+
+/* ── Correlation verdict ──────────────────────────────────────────────── */
+
+.verdict {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-areas:
+    "label lead"
+    "value body";
+  gap: 0 var(--gap-wide);
+  align-items: baseline;
+  margin-bottom: var(--gap);
+  padding-bottom: var(--gap);
+  border-bottom: 1px solid var(--rule-hair);
+  max-width: 74ch;
+}
+
+/* A coefficient near zero is the most actionable thing this page can say, and
+   it is the one a reader is most likely to mistake for a broken chart. It is
+   the only place outside the comparability banner where the accent interrupts. */
+.verdict--flat {
+  border-left: 6px solid var(--accent);
+  padding-left: var(--gap);
+  border-bottom-color: transparent;
+  background: var(--accent-soft);
+}
+
+.verdict__label {
+  grid-area: label;
+  margin: 0;
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.verdict__value {
+  grid-area: value;
+  margin: 0;
+  font-size: var(--text-title);
+  line-height: 1;
+  letter-spacing: var(--track-tight);
+}
+
+.verdict__lead {
+  grid-area: lead;
+  margin: 0;
+  font-size: var(--text-lead);
+  letter-spacing: var(--track-tight);
+  line-height: 1.3;
+}
+
+.verdict__body {
+  grid-area: body;
+  margin: var(--gap-tight) 0 0;
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+/* ── Narrow ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .verdict {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "value"
+      "lead"
+      "body";
+  }
+
+  .funnel__head {
+    flex-direction: column;
+    gap: 0;
+  }
+}

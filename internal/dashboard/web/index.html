@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Compare · Proxy Toolbox</title>
+    <!--
+      Inline so there is no favicon.ico round trip and no second embedded file:
+      the accent stroke from the masthead, on a transparent ground.
+    -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='6' width='14' height='4' fill='%23d4441f'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="vendor/uPlot.min.css" />
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="table.css" />
+    <link rel="stylesheet" href="notices.css" />
+    <link rel="stylesheet" href="views.css" />
+    <link rel="stylesheet" href="charts.css" />
+    <link rel="stylesheet" href="controls.css" />
+    <link rel="stylesheet" href="crosstool.css" />
+    <link rel="stylesheet" href="detail.css" />
+    <link rel="stylesheet" href="headtohead.css" />
+    <link rel="stylesheet" href="codes.css" />
+    <!--
+      uPlot ships as an IIFE that assigns the global `uPlot`. It is loaded as a
+      classic deferred script rather than imported, because the minified build
+      is not an ES module; deferred classic scripts run before module scripts,
+      so the global is in place by the time any view draws a chart.
+    -->
+    <script src="vendor/uPlot.min.js" defer></script>
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <!--
+      61 tab stops sit between the top of the page and anything a view mounts,
+      so the bypass is here from the first keypress.
+    -->
+    <a class="skip-link" href="#views">Skip to comparison views</a>
+
+    <header class="masthead">
+      <div class="masthead__id">
+        <p class="eyebrow">Proxy Toolbox — local, read-only</p>
+        <h1 class="masthead__title">Compare<span class="masthead__rule" aria-hidden="true"></span></h1>
+      </div>
+      <!--
+        The stat strip is the header's second voice: small, monospaced, and
+        updated in place. It is not a card row; it hangs off the masthead rule.
+      -->
+      <dl class="stat-strip" id="stat-strip">
+        <div class="stat">
+          <dt>Runs</dt>
+          <dd id="stat-runs">—</dd>
+        </div>
+        <div class="stat">
+          <dt>Selected</dt>
+          <dd id="stat-selected">0</dd>
+        </div>
+        <div class="stat">
+          <dt>Rows</dt>
+          <dd id="stat-rows" aria-describedby="rows-caveat">—</dd>
+          <dd class="visually-hidden" id="rows-caveat">
+            Total result rows across every CSV in the results directory. Runs
+            overlap, so this is not a count of distinct proxies.
+          </dd>
+        </div>
+      </dl>
+    </header>
+
+    <main id="main">
+      <section class="inventory" aria-labelledby="inventory-heading">
+        <div class="section-head">
+          <h2 id="inventory-heading">Run inventory</h2>
+          <p class="section-note" id="inventory-note" role="status">Reading <code>results/</code>…</p>
+        </div>
+
+        <!--
+          Replaced by the empty state, the error state, or the table. Pointedly
+          NOT a live region: renderTable replaces this subtree wholesale on
+          every sort, and a polite region here queues the entire table — some
+          six thousand characters — for announcement each time. Sorting is
+          announced deliberately, one line, through #sr-status below.
+        -->
+        <div id="inventory-body"></div>
+
+        <!-- The one place this page announces its own state changes. -->
+        <p class="visually-hidden" id="sr-status" role="status"></p>
+      </section>
+
+      <!--
+        Views registered for the current selection mount here. Task 18 leaves it
+        empty on purpose: no placeholder content, no fake panels.
+
+        Not a live region either, for the same reason as the inventory: a view
+        mounting a chart panel would otherwise be read out in full. tabindex=-1
+        makes it the skip link's target without putting it in the tab order.
+      -->
+      <section id="views" class="views" tabindex="-1"></section>
+    </main>
+  </body>
+</html>

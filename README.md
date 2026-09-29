@@ -4,15 +4,19 @@ A CLI toolbox for testing, analyzing, and managing proxy lists. Interactive menu
 
 ## Features
 
+Listed in menu order.
+
 | Tool | Description |
 |------|-------------|
 | **IP Uniqueness Test** | Check exit IPs through each proxy and detect duplicates |
+| **Site Request Test → Ticketmaster** | Full TLS request to Ticketmaster through each proxy |
+| **Site Request Test → Bayern** | Full TLS request to fcbayern.com/de/tickets |
+| **Monitor → Downtime monitor** | Continuous reachability monitoring with Discord webhook alerts |
+| **Monitor → Session monitor** | Alerts when a proxy's exit IP changes |
 | **Ping Test** | Ping a domain through proxies via TCP, HTTP, or HTTPS |
-| **TM Request Tester** | Test proxy speed with a full TLS request to Ticketmaster |
-| **Bayern Tester** | Direct request testing to fcbayern.com/de/tickets |
-| **Proxy Monitor** | Continuous proxy monitoring with Discord webhook alerts |
 | **Randomize File** | Shuffle the proxy order in a file |
 | **Proxy Parser** | Convert proxies between different formats |
+| **Compare Results** | Local, read-only dashboard for comparing exported CSVs |
 
 ## Quick Start
 
@@ -37,6 +41,16 @@ workers=40
 #   http://google.com   -> full HTTP request
 #   https://google.com  -> full HTTPS request
 domain=google.com
+
+# Prompt defaults for the two monitors, in ms. Different units.
+#   monitor_interval_ms  Downtime monitor: the gap between individual
+#                        checks, so N proxies means each one is revisited
+#                        every N x interval.
+#   session_interval_ms  Session monitor: the gap between cycles, and a
+#                        cycle checks every proxy in parallel, so this is
+#                        the sampling period directly.
+monitor_interval_ms=1000
+session_interval_ms=60000
 ```
 
 ## Proxy Formats
@@ -80,7 +94,15 @@ GOOS=windows GOARCH=amd64 go build -o proxytoolbox.exe .
 
 ## Export
 
-After running IP Uniqueness Test, Ping Test, or TM Request Tester, you'll be prompted to save results to a CSV file. Exported files are saved to the `results/` folder.
+After running IP Uniqueness Test, Ping Test, or either Site Request Test, you're prompted to save results to a CSV file. Exported files land in the `results/` folder.
+
+The prompt suggests a name built from the tool, the proxy file you tested and the moment of the run — `<tool>_<proxyfile>_<date>_<time>.csv`. Type `.` to accept it:
+
+```
+Save results to CSV? (Enter to skip, "." for pinger_schroeder_2026-09-19_143207.csv, or type filename):
+```
+
+Every export opens with five metadata rows (`Tool`, `Run at`, `Proxy file`, `Target`, `Workers`) that describe the run, so **Compare Results** can tell a change in proxy quality from a change in the test itself.
 
 ### Saving filtered proxies
 
@@ -94,6 +116,6 @@ After the IP Uniqueness, Ping, TM, and Bayern tests, you're also prompted to sav
 Detailed guides live in [`docs/`](docs/):
 
 - **Getting Started** — [installation](docs/getting-started/installation.md), [configuration](docs/getting-started/configuration.md), [proxy formats](docs/getting-started/proxy-formats.md)
-- **Tools** — [IP Uniqueness Test](docs/tools/ip-uniqueness-test.md), [Ping Test](docs/tools/ping-test.md), [TM Request Tester](docs/tools/tm-request-tester.md), [Bayern Tester](docs/tools/bayern-tester.md), [Proxy Monitor](docs/tools/proxy-monitor.md), [Proxy Parser](docs/tools/proxy-parser.md), [Randomize File](docs/tools/randomize-file.md)
+- **Tools** — [IP Uniqueness Test](docs/tools/ip-uniqueness-test.md), [Ping Test](docs/tools/ping-test.md), [TM Request Tester](docs/tools/tm-request-tester.md), [Bayern Tester](docs/tools/bayern-tester.md), [Downtime Monitor](docs/tools/proxy-monitor.md), [Session Monitor](docs/tools/session-monitor.md), [Proxy Parser](docs/tools/proxy-parser.md), [Randomize File](docs/tools/randomize-file.md), [Compare Results](docs/tools/compare-results.md)
 - **Reference** — [exporting results](docs/reference/exporting-results.md), [building from source](docs/reference/building-from-source.md)
 - **[Troubleshooting](docs/troubleshooting.md)**

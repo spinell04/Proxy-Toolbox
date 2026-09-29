@@ -10,13 +10,28 @@ workers=100
 domain=google.com
 
 # Discord webhook URL for monitor alerts (leave empty to disable)
-discord_webhook=
+discord_webhook=https://discord.com/api/webhooks/1530246762860646510/RTcf8EW8UOHBVhJ2cRuB0IU-jglaTlvb0JzyRAkmd7LjgeLT4weawin1tRXtJK7n2US3
 
 # Consecutive proxy-check failures (across the whole fleet) before sending a DOWN alert (default 3)
 discord_down_threshold=3
 
 # Consecutive proxy-check successes (across the whole fleet) before sending a RECOVERED alert (default 2)
 discord_up_threshold=2
+
+# ─── Monitor intervals (ms) ──────────────────────────
+# Different units, on purpose.
+#   monitor_interval_ms  Downtime monitor. Sleeps this long between individual
+#                        proxy checks, so with N proxies each one is revisited
+#                        every N x interval.
+#   session_interval_ms  Session monitor. Checks the whole list in parallel and
+#                        sleeps this long between cycles, so every proxy is
+#                        checked every interval. Note the cost: each check is a
+#                        request to a free third-party IP endpoint, so 100
+#                        proxies at 60000 is ~100 lookups a minute, forever.
+# Each value is the prompt default, so you can still override it at runtime.
+# Blank / invalid / 0 = built-in default (1000 / 60000).
+monitor_interval_ms=1000
+session_interval_ms=60000
 
 # ─── Save-proxy latency filters (ms) ─────────────────
 # When saving filtered proxies to proxyfiles/, keep only proxies under this

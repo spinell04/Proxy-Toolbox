@@ -1,0 +1,192 @@
+/*
+  Compare dashboard — chart surfaces.
+
+  The parts a <canvas> cannot style itself: the figure it sits in, the legend
+  built beside it in chart.js, and the tabular fallback under it. Split from
+  views.css so the page's composition and its chart furniture stay separately
+  readable, the same way table.css is split from styles.css.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; the
+  swatch geometry and hairline widths are literal sizes, and tokens.css says
+  why. Motion is `transform` and `opacity` only, plus one paint-only `color`
+  transition on the disclosure summaries — the same exception table.css takes
+  for its sort buttons.
+*/
+
+/* ── Figures and charts ───────────────────────────────────────────────── */
+
+.figure {
+  margin: 0;
+  min-width: 0;
+}
+
+.chart {
+  min-width: 0;
+}
+
+/* uPlot draws its own frame; these only align it with the page's type and
+   stop the canvas from forcing the grid wider than its column. */
+.chart .uplot,
+.chart .u-wrap {
+  max-width: 100%;
+}
+
+.chart .u-over,
+.chart .u-under {
+  border-color: var(--rule-hair);
+}
+
+/* ── Zoom ─────────────────────────────────────────────────────────────── */
+
+/* The way back out of a zoom, built in chart.js. uPlot resets on double-click
+   and says so nowhere, so this is that action given a name and a tab stop.
+   It sits above the canvas and to the right: out of the reading path of the
+   panel's note, and next to the thing it acts on. */
+.figure__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--gap-hair);
+}
+
+/* Lighter than .button in controls.css, which is the page's one heavy
+   affordance because it writes a file. This one only changes a view. */
+.zoom-reset {
+  padding: var(--gap-hair) var(--gap-tight);
+  border: 1px solid var(--rule-mid);
+  border-radius: 0;
+  background: var(--field-raised);
+  color: var(--ink);
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.zoom-reset:hover {
+  background: var(--accent-soft);
+  border-color: var(--rule-heavy);
+}
+
+/* ── Legend ───────────────────────────────────────────────────────────── */
+
+/* Built in chart.js rather than taken from uPlot, which renders an unnamed
+   table. A term list is the right shape and picks up the page's type. */
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-hair) var(--gap);
+  margin: var(--gap-tight) 0 0;
+  padding: var(--gap-tight) 0 0;
+  border-top: 1px solid var(--rule-hair);
+  list-style: none;
+  font-size: var(--text-small);
+}
+
+.keys__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-hair);
+  min-width: 0;
+}
+
+.keys__swatch {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 16px;
+  height: 3px;
+  background: var(--tint);
+}
+
+/* A dashed swatch carries no rule here: chart.js paints its gradient from the
+   series' own dash array, so the legend cannot show a pattern the canvas is
+   not drawing. The dot variant is geometry rather than pattern, so it stays.
+   Both exist so a series is never told apart by colour alone. */
+.keys__swatch--dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--tint);
+  background: var(--tint);
+  opacity: 0.85;
+}
+
+.keys__name {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.keys__sub {
+  display: block;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The cursor readout. Empty until the pointer is over the plot, and
+   deliberately not a live region. */
+.keys__value {
+  font-size: var(--text-small);
+  color: var(--accent-ink);
+  min-width: 0;
+}
+
+/* ── Tabular fallbacks ────────────────────────────────────────────────── */
+
+.data-fallback {
+  margin-top: var(--gap);
+  font-size: var(--text-small);
+}
+
+.data-fallback > summary {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding-block: var(--gap-hair);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.data-fallback > summary:hover {
+  color: var(--ink);
+}
+
+.data-fallback > * + * {
+  margin-top: var(--gap-tight);
+}
+
+/* The views' tables are shorter than the inventory and sit inside a panel, so
+   they get their own viewport rather than the inventory's 74vh. */
+.table-scroll--compact {
+  max-height: min(56vh, 30rem);
+}
+
+/* The header cell of an unsortable table. Matches the sort buttons' type so
+   the two kinds of table read as one family. */
+.th-static {
+  display: block;
+  padding: var(--gap-tight);
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  font-weight: 500;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* A change carries its sign in the text; the colour only reinforces it. */
+.delta--faster {
+  color: var(--good);
+}
+
+.delta--slower {
+  color: var(--bad);
+}

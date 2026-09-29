@@ -53,13 +53,22 @@ You'll land on the main menu:
 ```
 Proxy Toolbox
 > IP Uniqueness Test — Check exit IPs, detect duplicates
+  Site Request Test  — Full page requests to Ticketmaster or Bayern
+  Monitor            — Downtime and session monitoring
   Ping Test          — Ping a domain through proxies
-  TM Request Tester  — Test proxy speed with a full request to Ticketmaster
   Randomize File     — Shuffle proxy order in a file
   Proxy Parser       — Convert proxy format in a file
-  Bayern Tester      — Direct request testing to fcbayern.com/de/tickets
-  Proxy Monitor      — Continuous monitoring with alerts
+  Compare Results    — Local dashboard for comparing exported CSVs
   Exit
 ```
 
 Use **↑ / ↓** to navigate and **Enter** to select.
+
+**Site Request Test** and **Monitor** open submenus rather than running straight away:
+
+```
+Site Request Tester          Monitor
+> Ticketmaster               > Downtime monitor
+  Bayern                       Session monitor
+  Back                         Back
+```

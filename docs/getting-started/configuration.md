@@ -9,14 +9,20 @@ All settings live in `config.txt` next to the binary. If the file is missing, de
 # Number of parallel workers (applies to all tools)
 workers=40
 
-# Default domain for Ping Test / Proxy Monitor (optional)
+# Default domain for Ping Test / Downtime Monitor (optional)
 # Formats:
 #   google.com          -> TCP connect only
 #   http://google.com   -> full HTTP request
 #   https://google.com  -> full HTTPS request
 domain=google.com
 
-# ─── Proxy Monitor: Discord alerts ────────────────────
+# ─── Monitor intervals (ms) ───────────────────────────
+# Gap between individual proxy checks (not between cycles).
+# Blank / invalid / 0 = built-in default.
+monitor_interval_ms=1000
+session_interval_ms=60000
+
+# ─── Monitor: Discord alerts ──────────────────────────
 # Webhook URL for monitor alerts (leave empty to disable)
 discord_webhook=
 # Consecutive fleet failures before a DOWN alert (default 3)
@@ -46,11 +52,11 @@ How many proxies are tested in parallel. Higher = faster, but you'll hit diminis
 
 Default if unset: `20`.
 
-Applies to the parallel tools — IP Uniqueness Test, Ping Test, TM Request Tester, and Bayern Tester. (Proxy Monitor checks proxies sequentially per cycle and ignores `workers`.)
+Applies to the parallel tools — IP Uniqueness Test, Ping Test, TM Request Tester, Bayern Tester, and the Session Monitor. (The Downtime Monitor checks proxies sequentially and ignores `workers`.)
 
 ### `domain`
 
-Default domain for the **Ping Test** and **Proxy Monitor** tools. When you run either, the prompt pre-fills this value; press Enter to use it or type a different one.
+Default domain for the **Ping Test** and **Downtime Monitor** tools. When you run either, the prompt pre-fills this value; press Enter to use it or type a different one.
 
 The URL scheme controls the test mode:
 
@@ -62,13 +68,30 @@ The URL scheme controls the test mode:
 
 If `domain` is empty or missing, the tool asks you to type one each time.
 
-## Proxy Monitor: Discord alerts
+## Monitor intervals
 
-These keys configure the [Proxy Monitor](../tools/proxy-monitor.md) tool only.
+Each key is the **prompt default** for one monitor — you can still type a different value at runtime. Blank, non-numeric, or non-positive falls back to the built-in default.
+
+| Key | Tool | Default |
+|-----|------|---------|
+| `monitor_interval_ms` | [Downtime Monitor](../tools/proxy-monitor.md) | `1000` |
+| `session_interval_ms` | [Session Monitor](../tools/session-monitor.md) | `60000` |
+
+The two are **not** the same unit.
+
+`monitor_interval_ms` is the gap between individual checks — the Downtime Monitor walks the list one proxy at a time, so with N proxies each is revisited every `N × interval`.
+
+`session_interval_ms` is the gap between **cycles**, and a Session Monitor cycle checks every proxy in parallel. The interval is therefore the sampling period directly, but the request volume scales with the list: `proxies ÷ interval` lookups per minute against free third-party IP endpoints. 100 proxies at `60000` is 100 lookups a minute. The startup banner prints both figures.
+
+The session default is far higher because each check is a full HTTP round trip to an IP-echo endpoint, while a downtime check is a single reachability probe.
+
+## Monitor: Discord alerts
+
+`discord_webhook` is shared by both monitors. The threshold keys below apply to the [Downtime Monitor](../tools/proxy-monitor.md) only — the [Session Monitor](../tools/session-monitor.md) uses a fixed per-proxy 5-and-30 failure ladder that is not configurable.
 
 ### `discord_webhook`
 
-Discord webhook URL. When set, the monitor posts **DOWN** and **RECOVERED** embeds on fleet-level state changes. Leave it blank to disable alerts and run fully local.
+Discord webhook URL. When set, the Downtime Monitor posts **DOWN** and **RECOVERED** embeds on fleet-level state changes, and the Session Monitor posts per-proxy **ROTATED**, **FAILING** and **RECOVERED** embeds. Leave it blank to disable alerts and run fully local.
 
 ### `discord_down_threshold`
 

@@ -1,5 +1,13 @@
 # Bayern Tester
 
+The main menu's **Site Request Test** entry opens a submenu with two testers:
+
+* **Ticketmaster** — [full request to a Ticketmaster region](tm-request-tester.md)
+* **Bayern** — full request to the FC Bayern ticket shop (this page)
+* **Back** — return to the main menu
+
+Both send a full page request through every proxy, which is what separates them from the [Ping Test](ping-test.md): they measure a real fetch against real bot protection, not a connect.
+
 ## What it does
 
 Sends a full, browser-like TLS request to the FC Bayern ticket shop (`https://fcbayern.com/de/tickets`) through each proxy. It's the same engine as the [TM Request Tester](tm-request-tester.md), but pointed at a single fixed target instead of a region menu — useful when you specifically need proxies that can reach the Bayern queue.
@@ -26,12 +34,12 @@ There's no region prompt — just pick your proxy file and go.
   TLS     : Chrome 133 (tlsclient)
 ─────────────────────────────────────────────────────────────
 
-#      Host                      Speed       Status
-───────────────────────────────────────────────────────
-1      1.2.3.4                   520ms       200 OK
-2      5.6.7.8                   480ms       200 OK
-3      9.10.11.12                910ms       403 BLOCKED
-4      13.14.15.16               —           ERROR  timeout
+#      Proxy                                         Speed       Status
+─────────────────────────────────────────────────────────────────────────
+1      admin:secret@1.2.3.4:8080                     520ms       200 OK
+2      admin:secret@5.6.7.8:8080                     480ms       200 OK
+3      admin:secret@9.10.11.12:8080                  910ms       403 BLOCKED
+4      admin:secret@13.14.15.16:8080                 —           ERROR  timeout
 ...
 
   Total proxies  : 1000
@@ -59,15 +67,22 @@ There's no region prompt — just pick your proxy file and go.
 
 - **Average** — mean of all successful (200) latencies
 - **Median (p50)** — middle value; less skewed by outliers than the average
-- **p95** — 95% of successful requests were faster than this; shows the slow tail
+- **p95** — 95% of successful requests came back in this time or less; shows the slow tail
 - **Fastest / Slowest** — extremes across successful requests
+
+Percentiles use the **nearest-rank** method: the successful latencies are sorted and the value at rank `ceil(p × n)` is reported. Nothing is interpolated, so a reported p50 or p95 is always a latency some real proxy recorded. The [compare dashboard](compare-results.md) uses the same method, so its figures match these.
 
 ## CSV export
 
-Same "summary on top" layout as the other tools:
+Same layout as the other tools — five metadata rows describing the run, then the summary, then the per-proxy rows:
 
 ```
 Summary,Value
+Tool,bayerntester
+Run at,2026-09-19T15:11:40Z
+Proxy file,residential.txt
+Target,https://fcbayern.com/de/tickets
+Workers,40
 Total proxies,1000
 Working,800
 Blocked (403),150
@@ -78,10 +93,14 @@ p95,1200ms
 Fastest,180ms
 Slowest,3500ms
 ,
-#,Host,Speed,Status,Error
-1,1.2.3.4,320ms,200 OK,
+#,Proxy,Latency,Status,Error
+1,admin:secret@1.2.3.4:8080,320ms,200 OK,
+2,admin:secret@5.6.7.8:8080,910ms,403 BLOCKED,
+3,admin:secret@9.10.11.12:8080,,ERROR,timeout
 ...
 ```
+
+The on-screen column is headed **Speed**; in the CSV the same figure is headed **Latency**.
 
 See [Exporting Results](../reference/exporting-results.md).
 

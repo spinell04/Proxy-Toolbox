@@ -1,0 +1,58 @@
+/*
+  Compare dashboard — empty, error and cap notices.
+
+  The states that stand in for the table, and the one that sits under it. Each
+  is a rule-led block rather than a card, matching the rest of the page.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; a handful
+  of sizes are — the page maximum, hairline border widths and the breakpoints —
+  and tokens.css says why.
+*/
+
+/* ── Notices: empty, error, cap ───────────────────────────────────────── */
+
+.notice {
+  border-left: 3px solid var(--rule-mid);
+  padding: var(--gap) var(--gap-wide) var(--gap) var(--gap);
+  background: var(--field-sunk);
+  max-width: 68ch;
+}
+
+.notice h3 {
+  margin: 0 0 var(--gap-tight);
+  font-size: var(--text-lead);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+}
+
+.notice p {
+  margin: 0 0 var(--gap-tight);
+  color: var(--ink-muted);
+}
+
+.notice ol {
+  margin: 0;
+  padding-left: 1.3em;
+  color: var(--ink-muted);
+}
+
+.notice--error {
+  border-left-color: var(--bad);
+}
+
+.notice--error h3 {
+  color: var(--bad);
+}
+
+.notice code {
+  font-size: 0.95em;
+  background: var(--field-raised);
+  padding: 0.1em 0.35em;
+  border: 1px solid var(--rule-hair);
+}
+
+.cap-warning {
+  margin: var(--gap-tight) 0 0;
+  font-size: var(--text-small);
+  color: var(--accent-ink);
+}

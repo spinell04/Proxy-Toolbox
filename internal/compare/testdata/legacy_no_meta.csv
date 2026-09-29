@@ -1,0 +1,9 @@
+Summary,Value
+Proxies tested,2
+Successful,1
+Errors,1
+Total time,0.5s
+,
+#,Host,Latency,Status,Error
+1,1.2.3.4,300ms,OK,
+2,1.2.3.5,,ERROR,connection refused

@@ -1,0 +1,226 @@
+/*
+  Compare dashboard — design tokens, reset and base type.
+
+  Split from styles.css so the system and the components that consume it stay
+  separately readable; both are linked from index.html, tokens first.
+
+  Direction: Swiss/editorial instrument panel. Rules and whitespace carry the
+  structure instead of cards; figures are monospaced and tabular so columns
+  align optically; one signal accent (vermilion) marks state and nothing else.
+  Dense on purpose — this is read next to a terminal, not browsed.
+
+  Every colour and duration is a custom property, as is every step of the type
+  and spacing scale. Sizes are not uniformly tokenized: page maxima, hairline
+  border widths and the media-query breakpoints are literals, the last of which
+  cannot be custom properties at all, since a media query cannot read one.
+
+  Animation is confined to `transform` and `opacity`. One paint-only `color`
+  transition exists on the sort buttons in styles.css; it is not layout-bound,
+  so it stays on the compositor's good side and off the banned list.
+*/
+
+:root {
+  color-scheme: light dark;
+
+  /* Field and ink. Warm paper, cool ink: the pairing keeps dense numeric
+     columns from reading as flat grey-on-white. */
+  --field: oklch(97.4% 0.008 85);
+  --field-sunk: oklch(94.6% 0.009 85);
+  --field-raised: oklch(99.2% 0.005 85);
+  --ink: oklch(21% 0.014 265);
+  /* Three ink tiers, all at or above 4.5:1 against every field they sit on.
+     The quiet tiers are close in value on purpose — tier 3 is separated from
+     tier 2 by weight and tracking, not by fading it to illegibility, which is
+     what the Swiss direction wants anyway. Measured against --field:
+     ink 16.4:1, muted 7.2:1, faint 4.9:1 (4.5:1 on --field-sunk, the darkest
+     surface either sits on). */
+  --ink-muted: oklch(44% 0.014 265);
+  --ink-faint: oklch(53% 0.012 265);
+
+  /* Rules do the work cards would. Three weights, used deliberately. */
+  --rule-hair: oklch(86% 0.01 265);
+  --rule-mid: oklch(74% 0.012 265);
+  --rule-heavy: oklch(30% 0.014 265);
+
+  /* One accent. Semantic colours are separate and never decorative. */
+  --accent: oklch(55% 0.196 30);
+  --accent-soft: oklch(55% 0.196 30 / 0.1);
+  --accent-ink: oklch(45% 0.17 30);
+  --good: oklch(48% 0.12 155);
+  --warn: oklch(53% 0.13 78);
+  --bad: oklch(52% 0.18 25);
+
+  --focus: oklch(52% 0.18 255);
+
+  /* Categorical series colours, for the one chart whose curves are unrelated
+     categories rather than steps of a single quantity. Six hues, then cycle.
+
+     Not --good, --warn or --bad: those are verdicts, and a green provider
+     would read as the recommended one before anything had been measured. Not
+     --accent either — on this page the accent marks a finding, and a provider
+     that permanently owned it would look like the answer.
+
+     One lightness and one chroma across all six, so no curve carries more
+     weight than another and only hue separates them. The chroma is what the
+     narrowest hue (teal) can hold in sRGB at this lightness, which keeps the
+     whole set in gamut and as muted as the rest of the palette.
+
+     Hue alone is not enough, so the chart pairs each of these with its own
+     dash pattern — the same "never colour alone" rule the tables follow.
+
+     Contrast against --field, the darkest surface a plot sits on, measured:
+     1 blue 4.50:1, 2 rose 4.73:1, 3 teal 4.32:1, 4 bronze 4.63:1,
+     5 violet 4.68:1, 6 moss 4.43:1. A chart line is non-text, so the bar is
+     WCAG 1.4.11's 3:1, and every one clears it with the ink tiers' margin. */
+  --series-1: oklch(55% 0.09 255);
+  --series-2: oklch(55% 0.09 345);
+  --series-3: oklch(55% 0.09 200);
+  --series-4: oklch(55% 0.09 55);
+  --series-5: oklch(55% 0.09 310);
+  --series-6: oklch(55% 0.09 110);
+
+  /* Type. A tight grotesk for voice and for every figure, a monospace for
+     identifiers only. No webfonts: the dashboard is embedded in the binary and
+     must render with no network, so the pairing is built from system faces and
+     given character through tracking, weight and case instead. */
+  --face-display: ui-sans-serif, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --face-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-micro: 0.6875rem;
+  --text-small: 0.8125rem;
+  --text-body: 0.9375rem;
+  --text-lead: clamp(1.05rem, 0.95rem + 0.4vw, 1.3rem);
+  --text-title: clamp(2.6rem, 1.4rem + 5.2vw, 5rem);
+
+  --track-wide: 0.14em;
+  --track-tight: -0.03em;
+
+  /* Spacing rhythm: a 4px base with deliberately uneven steps, so sections
+     breathe and rows stay tight. */
+  --gap-hair: 0.25rem;
+  --gap-tight: 0.5rem;
+  --gap: 1rem;
+  --gap-wide: 2rem;
+  --gap-section: clamp(2.5rem, 1.5rem + 3vw, 4.5rem);
+  --gutter: 16px;
+  /* The table's own viewport. Bounding it is what makes the sticky header
+     work at all — see table.css. */
+  --table-viewport: min(74vh, 48rem);
+
+  --dur-fast: 110ms;
+  --dur: 220ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dark: a technical surface, not an inverted document. Graphite field, the
+   accent lifted so it still reads as signal against it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --field: oklch(17.5% 0.014 265);
+    --field-sunk: oklch(14% 0.014 265);
+    --field-raised: oklch(21.5% 0.015 265);
+    --ink: oklch(93% 0.008 265);
+    /* Measured against --field-raised, the lightest surface these sit on and
+       so the worst case for light ink: ink 14.3:1, muted 8.2:1, faint 4.8:1. */
+    --ink-muted: oklch(76% 0.012 265);
+    --ink-faint: oklch(62% 0.012 265);
+    --rule-hair: oklch(30% 0.014 265);
+    --rule-mid: oklch(40% 0.016 265);
+    --rule-heavy: oklch(78% 0.012 265);
+    --accent: oklch(70% 0.17 33);
+    --accent-soft: oklch(70% 0.17 33 / 0.14);
+    --accent-ink: oklch(78% 0.15 35);
+    --good: oklch(72% 0.14 158);
+    --warn: oklch(78% 0.13 80);
+    --bad: oklch(68% 0.17 25);
+    --focus: oklch(72% 0.15 250);
+    /* Lifted to sit on a graphite field, at one lightness and one chroma the
+       same way the light set is. Measured against --field-raised, the lightest
+       surface a plot sits on: 1 blue 7.89:1, 2 rose 7.52:1, 3 teal 8.20:1,
+       4 bronze 7.67:1, 5 violet 7.59:1, 6 moss 8.00:1. */
+    --series-1: oklch(75% 0.1 255);
+    --series-2: oklch(75% 0.1 345);
+    --series-3: oklch(75% 0.1 200);
+    --series-4: oklch(75% 0.1 55);
+    --series-5: oklch(75% 0.1 310);
+    --series-6: oklch(75% 0.1 110);
+  }
+}
+
+:root[data-theme="dark"] {
+  --field: oklch(17.5% 0.014 265);
+  --field-sunk: oklch(14% 0.014 265);
+  --field-raised: oklch(21.5% 0.015 265);
+  --ink: oklch(93% 0.008 265);
+  /* Measured against --field-raised; see the media-query block above. */
+  --ink-muted: oklch(76% 0.012 265);
+  --ink-faint: oklch(62% 0.012 265);
+  --rule-hair: oklch(30% 0.014 265);
+  --rule-mid: oklch(40% 0.016 265);
+  --rule-heavy: oklch(78% 0.012 265);
+  --accent: oklch(70% 0.17 33);
+  --accent-soft: oklch(70% 0.17 33 / 0.14);
+  --accent-ink: oklch(78% 0.15 35);
+  --good: oklch(72% 0.14 158);
+  --warn: oklch(78% 0.13 80);
+  --bad: oklch(68% 0.17 25);
+  --focus: oklch(72% 0.15 250);
+  /* Measured against --field-raised; see the media-query block above. */
+  --series-1: oklch(75% 0.1 255);
+  --series-2: oklch(75% 0.1 345);
+  --series-3: oklch(75% 0.1 200);
+  --series-4: oklch(75% 0.1 55);
+  --series-5: oklch(75% 0.1 310);
+  --series-6: oklch(75% 0.1 110);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  /* Explicit background, plus a faint ledger wash that gives the field
+     atmosphere without becoming a gradient hero. */
+  background-color: var(--field);
+  background-image: radial-gradient(120% 60% at 0% 0%, var(--field-raised), transparent 70%);
+  color: var(--ink);
+  font-family: var(--face-display);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+/* Identifiers stay on the monospace face: a proxy ID or a file name is read
+   character by character, and a fixed advance is what makes that possible. */
+code {
+  font-family: var(--face-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Figures do not. The monospace advance is set for letters, so a column of
+   latencies reads as though the digits were separate values; the text face
+   with tabular figures sets them tight and still keeps every column in
+   register, which is the only thing the mono face was carrying here. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+

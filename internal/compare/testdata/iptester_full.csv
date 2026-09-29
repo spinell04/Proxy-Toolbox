@@ -1,0 +1,18 @@
+Summary,Value
+Tool,iptester
+Run at,2026-09-19T15:10:00Z
+Proxy file,residential_de.txt
+Target,
+Workers,50
+Proxies tested,3
+Errors,1
+Unique IPs,1 / 2
+Total time,0.8s
+,
+Repeated IP,Times,Lines
+9.9.9.1,2,"1, 2"
+,
+#,Proxy,Exit IP,Latency,Error
+1,alice:pw@1.2.3.4:8080,9.9.9.1,120ms,
+2,bob:pw@1.2.3.5:8080,9.9.9.1,140ms,
+3,carol:pw@1.2.3.6:8080,,,dial tcp: i/o timeout

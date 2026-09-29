@@ -18,7 +18,7 @@ The binary can't find a `proxyfiles/` folder. Make sure:
 - At least one `.txt` file is inside
 - You're running the binary from a location where it can resolve its own path (normally fine for compiled binaries; `go run` falls back to the current working directory)
 
-## All proxies return `ERROR` in Ping Test, TM Request Tester, or Bayern Tester
+## All proxies return `ERROR` in Ping Test or Site Request Test
 
 Usually one of:
 
@@ -33,7 +33,7 @@ Usually one of:
 - **IP whitelist** — some providers require your public IP to be allowlisted before the proxies work. Check the provider dashboard.
 - **Firewall / antivirus** — corporate firewalls sometimes block outbound proxy connections. Try from a different network.
 
-## `403 BLOCKED` on everything in TM Request Tester or Bayern Tester
+## `403 BLOCKED` on everything in Site Request Test
 
 The target's bot protection (Ticketmaster, or FC Bayern's shop) flagged the proxies. Possible causes:
 
@@ -41,12 +41,12 @@ The target's bot protection (Ticketmaster, or FC Bayern's shop) flagged the prox
 - Region mismatch — e.g. using US proxies against `ticketmaster.de` triggers geoblocks (the Bayern Tester always hits the German shop, so non-EU proxies fare worse)
 - Datacenter IPs — these targets aggressively block datacenter ranges; residential or mobile proxies perform better
 
-## Proxy Monitor never sends Discord alerts
+## Monitor → Downtime monitor never sends Discord alerts
 
 If the live feed shows failures but no Discord message arrives:
 
 - **`discord_webhook` is blank** — alerts are disabled. Set the webhook URL in [`config.txt`](getting-started/configuration.md).
-- **Threshold not reached** — a DOWN alert only fires after `discord_down_threshold` *consecutive* fleet failures (default 3). Intermittent single failures won't trigger it.
+- **Threshold not reached** — a DOWN alert only fires after `discord_down_threshold` *consecutive* fleet failures (default 3). Intermittent single failures won't trigger it. The [Session Monitor](tools/session-monitor.md) ignores these keys: its ladder is a fixed per-proxy 5 and 30, and it alerts on every rotation.
 - **Bad webhook URL** — test it with `curl`:
 
   ```bash

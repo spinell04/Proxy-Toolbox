@@ -1,0 +1,296 @@
+/*
+  Compare dashboard — the inventory table.
+
+  The table is the landing view and the densest surface on the page, so it owns
+  its own file: figures, sort affordances, the selection marker, and the
+  narrow-width rules that decide which columns survive.
+
+  Motion is `transform` and `opacity` only, with one exception: the sort
+  buttons transition `color`. That is a paint-only property, not a layout-bound
+  one, so it is deliberate rather than an oversight.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; a handful
+  of sizes are — the page maximum, hairline border widths and the breakpoints —
+  and tokens.css says why.
+*/
+
+/* ── Inventory table ──────────────────────────────────────────────────── */
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* The page never scrolls sideways; the table does, inside its own frame.
+   `overflow-x: auto` makes this element the containing block for the sticky
+   header below, and there is no way to have horizontal scrolling without
+   that. `overflow-y: clip` does not help: with a scrolling x-axis it computes
+   to `hidden`, which is still a scroll container — measured, not assumed.
+
+   So the frame is given a height instead. Bounded, it becomes the scrollport
+   the header sticks within, and column context survives scrolling through
+   fifty runs or zooming to 200%. Below that height the frame is content-sized
+   and nothing scrolls at all, which is the one-run case.
+
+   The element takes a tabindex in inventory.js — a scroll container with no
+   focusable descendant of its own is otherwise unreachable by keyboard, and
+   below 860px everything from p50 rightwards is off-screen. */
+.table-scroll {
+  max-height: var(--table-viewport);
+  overflow: auto;
+  border-block: 1px solid var(--rule-mid);
+}
+
+.table-scroll:focus-visible {
+  outline-offset: -2px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--field);
+  border-bottom: 1px solid var(--rule-mid);
+  padding: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Sort controls are real buttons so they are reachable and announce state.
+   The weight is set explicitly: `font: inherit` would take the UA's bold from
+   the <th>, and 11px bold at --ink-faint is the loudest quiet thing on the
+   page. 500 keeps the header subordinate to the figures without reaching for
+   a lighter colour, which is what used to do this job illegibly. */
+th button {
+  display: block;
+  width: 100%;
+  padding: var(--gap-tight) var(--gap-tight);
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  font: inherit;
+  font-weight: 500;
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  text-align: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+th button:hover {
+  color: var(--ink);
+}
+
+th button::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.4em;
+  border: 0.3em solid transparent;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur) var(--ease);
+}
+
+th[aria-sort] button {
+  color: var(--accent-ink);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+th[aria-sort="ascending"] button::after {
+  border-bottom-color: currentColor;
+  transform: translateY(-0.15em);
+  opacity: 1;
+}
+
+th[aria-sort="descending"] button::after {
+  border-top-color: currentColor;
+  transform: translateY(0.15em);
+  opacity: 1;
+}
+
+/* Numeric columns centre — header and figures alike — so a column reads as one
+   vertical run. Right-aligned figures under a left-aligned header sit at
+   opposite ends of a wide column and stop looking like the same column.
+   `th.col-num` covers both header forms: a sort button where the column is
+   sortable, a plain span where it is not. */
+th.col-num,
+th.col-num button,
+td.col-num {
+  text-align: center;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--rule-hair);
+}
+
+tbody tr:last-child {
+  border-bottom: 0;
+}
+
+tbody td {
+  padding: var(--gap-tight);
+  white-space: nowrap;
+}
+
+td.col-file {
+  font-family: var(--face-mono);
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Figures stay on the text face with tabular figures: the columns still line
+   up, and the digits are no longer spaced as though each were its own value. */
+td.col-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The selection marker: a bar in the leading cell that scales in. Nothing
+   about the row's geometry moves, so hover stays on the compositor. */
+td.col-pick {
+  position: relative;
+  padding-left: calc(var(--gap-tight) + 6px);
+}
+
+td.col-pick::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur) var(--ease);
+}
+
+tbody tr:hover td.col-pick::before {
+  transform: scaleX(0.5);
+}
+
+tbody tr:hover {
+  background: var(--field-raised);
+}
+
+tbody tr.is-selected {
+  background: var(--accent-soft);
+}
+
+tbody tr.is-selected td.col-pick::before {
+  transform: scaleX(1);
+}
+
+tbody tr:has(:focus-visible) {
+  background: var(--field-raised);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+/* Capped, not disabled — see setCapped in inventory.js. The box keeps its
+   tab stop, so it also keeps a focus ring; only the affordance is withdrawn. */
+input[type="checkbox"][data-capped] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* Unknown metadata: muted, dotted, and explained on hover rather than blank. */
+.unknown {
+  color: var(--ink-faint);
+  font-style: italic;
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
+}
+
+/* Success rate reads as a figure with a hairline bar behind it — the table's
+   only chart, and part of the same system as the real ones. */
+.rate {
+  display: inline-grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-width: 8ch;
+}
+
+.rate__bar {
+  grid-area: 1 / 1;
+  height: 100%;
+  min-height: 1.2em;
+  background: var(--tint, var(--good));
+  opacity: 0.22;
+  transform-origin: left center;
+  transform: scaleX(var(--v, 0));
+}
+
+.rate__text {
+  grid-area: 1 / 1;
+  justify-self: end;
+  padding-inline: 0.4em;
+}
+
+.tool {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* ── Narrow ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 860px) {
+  /* Secondary columns drop out before the table starts scrolling, so the
+     figures that matter stay on screen at phone width. */
+  .col-proxyfile,
+  .col-target,
+  .col-workers {
+    display: none;
+  }
+
+  .stat-strip {
+    gap: var(--gap);
+  }
+}
+
+@media (max-width: 520px) {
+  /* Phone width. The figures cannot all fit, so the table keeps scrolling
+     sideways inside its frame — but the file name is trimmed and the cells
+     tightened first, so most of the run's numbers are on screen before any
+     scrolling is needed. */
+  table {
+    font-size: var(--text-micro);
+  }
+
+  tbody td,
+  th button {
+    padding-inline: var(--gap-hair);
+  }
+
+  td.col-file {
+    max-width: 12ch;
+  }
+
+  .rate {
+    min-width: 6ch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

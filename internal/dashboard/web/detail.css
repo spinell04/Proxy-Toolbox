@@ -1,0 +1,113 @@
+/*
+  Compare dashboard — the single-run detail view.
+
+  Two shapes the other views do not have: the identity strip under the
+  headline, and the error taxonomy bars. Both are built out of the same
+  rules-and-whitespace vocabulary as the rest of the page, with no card and no
+  shadow.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; the
+  hairline widths and the breakpoint are literal sizes, and tokens.css says
+  why. Motion is `transform` only.
+*/
+
+/* ── Identity strip ───────────────────────────────────────────────────── */
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--gap);
+  margin: var(--gap) 0 0;
+  padding-top: var(--gap-tight);
+  border-top: 2px solid var(--rule-heavy);
+}
+
+.facts__item {
+  min-width: 0;
+}
+
+.facts dt {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.facts dd {
+  margin: 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+/* ── Percentile table ─────────────────────────────────────────────────── */
+
+.stat-value {
+  font-size: var(--text-body);
+}
+
+.stat-note {
+  color: var(--ink-muted);
+  white-space: normal;
+}
+
+/* ── Error taxonomy ───────────────────────────────────────────────────── */
+
+.taxonomy {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 62ch;
+}
+
+.taxonomy__item {
+  padding-block: var(--gap-tight);
+  border-top: 1px solid var(--rule-hair);
+}
+
+.taxonomy__item:first-child {
+  border-top: 0;
+}
+
+.taxonomy__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 0 0 var(--gap-hair);
+}
+
+.taxonomy__kind {
+  font-family: var(--face-mono);
+  font-size: var(--text-lead);
+  letter-spacing: var(--track-tight);
+}
+
+.taxonomy__count {
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+.taxonomy__track {
+  display: block;
+  height: 4px;
+  background: var(--field-sunk);
+}
+
+.taxonomy__fill {
+  display: block;
+  height: 100%;
+  background: var(--bad);
+  transform-origin: left center;
+  transform: scaleX(var(--v, 0));
+  transition: transform var(--dur) var(--ease);
+}
+
+/* ── Narrow ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 520px) {
+  .taxonomy__head {
+    flex-direction: column;
+    gap: 0;
+  }
+}

@@ -22,21 +22,36 @@ If one fails, it falls back to the next. The returned body is the exit IP, which
 
 Tests run in parallel using the `workers` value from [`config.txt`](../getting-started/configuration.md).
 
+### Repeated lines are spaced one second apart
+
+If the same proxy string appears more than once in the file, its copies are **not** checked in parallel. Each repeat waits one second after the previous one finishes, and the tool prints how many checks that affects before the run starts.
+
+This is because a residential gateway keys its sticky session off the username, not the host. Repeating a line asks for the same session again, so firing the copies simultaneously measures a single instant and tells you nothing about whether the exit rotates. Spacing them turns a repeated line into a probe of one proxy over time, which is the only reason to repeat a line.
+
+Two consequences worth knowing:
+
+- **A file of N copies of one proxy takes at least N − 1 seconds.** The gap sits *between* checks, so the first copy waits for nothing. That is the point, not a regression.
+- **A file with no duplicates is unaffected.** Repeats are handled outside the worker pool, so distinct proxies keep running at full width even when a repeated proxy is trickling alongside them.
+
+A proxy is "the same" here when its whole `user:pass@host:port` matches — which is what identifies a session. Two lines sharing a host but carrying different session IDs are different proxies and run in parallel as usual.
+
 ## Reading the output
 
 ```
-#      Host                      Exit IP             Latency
------------------------------------------------------------------
-1      84.56.107.201             84.56.107.201         412ms
-2      91.38.203.163             91.38.203.163         488ms
-3      84.56.107.201             84.56.107.201         391ms  *** REPEATED x2 (lines: 1)
+#      Proxy                                 Exit IP             Latency
+--------------------------------------------------------------------------
+1      admin:secret@1.2.3.4:8080             84.56.107.201         412ms
+2      admin:secret@5.6.7.8:8080             91.38.203.163         488ms
+3      admin:secret@9.10.11.12:8080          84.56.107.201         391ms  *** REPEATED x2 (lines: 1)
+4      admin:secret@13.14.15.16:8080         ERROR  proxy connect: i/o timeout
 ...
 ```
 
 - **#** — line number in the source file
-- **Host** — the proxy host
+- **Proxy** — the proxy, as `user:pass@host:port`, elided in the middle when it is too wide for the column
 - **Exit IP** — what the world sees when traffic goes through that proxy
 - **Latency** — round-trip time for the full request
+- **ERROR** — a failed check drops the Exit IP and Latency columns and prints a shortened reason instead
 - **REPEATED xN (lines: …)** — marker when the same exit IP has been seen before; shows which earlier lines matched
 
 ## Final summary
@@ -58,10 +73,15 @@ Total time       : 56.337s
 
 ## CSV export
 
-After the run, you're prompted to save results to CSV. The export contains the summary block on top, then the repeated IPs section:
+After the run, you're prompted to save results to CSV. The export has three sections: the metadata and summary block, the repeated IPs, then one row per proxy.
 
 ```
 Summary,Value
+Tool,iptester
+Run at,2026-09-19T14:32:07Z
+Proxy file,residential.txt
+Target,
+Workers,40
 Proxies tested,1000
 Errors,5
 Unique IPs,941 / 995
@@ -70,8 +90,17 @@ Total time,56.337s
 Repeated IP,Times,Lines
 84.56.107.201,3,"222, 700, 880"
 91.38.203.163,2,"601, 701"
+,
+#,Proxy,Exit IP,Latency,Error
+1,admin:secret@1.2.3.4:8080,84.56.107.201,412ms,
+2,admin:secret@5.6.7.8:8080,91.38.203.163,488ms,
+3,admin:secret@9.10.11.12:8080,,,proxy connect: i/o timeout
 ...
 ```
+
+`Target` is empty because this tool doesn't have one — it asks a reflection service what your exit IP is, rather than testing a destination you chose.
+
+The per-proxy section is what lets [Compare Results](compare-results.md) attach an exit IP to a proxy that also appears in a ping or TM run — which is what makes its cross-tool matrix able to collapse rows by exit IP or exit /24.
 
 Files are saved to `results/` next to the binary. See [Exporting Results](../reference/exporting-results.md) for details.
 

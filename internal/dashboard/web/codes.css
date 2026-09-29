@@ -1,0 +1,213 @@
+/*
+  Compare dashboard — the head-to-head error-code panel.
+
+  The table itself is the one the rest of the page uses: it inherits the frame,
+  the sticky header and the hairline rows from table.css, and adds only the two
+  shapes this panel needs — a cell that stacks a count over its share, and a
+  disclosure row that opens beneath its own row.
+
+  The disclosure is the one place the table's `white-space: nowrap` has to be
+  undone. Every other cell is a figure that must not wrap; this one is a block
+  of proxy IDs, and letting it set the table's width would push the figures off
+  screen to show text that is already elided.
+
+  Nothing here uses colour as the only channel. The zero cell is a written 0 in
+  a quieter ink, not an empty cell; the expanded state is on the button's
+  aria-expanded and in its marker's rotation, not in a tint.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; the
+  marker geometry, hairline widths and the breakpoint are literal sizes, and
+  tokens.css says why. Motion is `transform` only.
+*/
+
+/* ── Cells ────────────────────────────────────────────────────────────── */
+
+/* The count leads, the share sits under it in the quieter tier. Stacked rather
+   than written inline as "4 (4.0%)": down a column the eye compares counts to
+   counts and shares to shares, and the parenthetical form interleaves them. */
+.codes__cell {
+  vertical-align: top;
+}
+
+.codes__count {
+  display: block;
+  font-size: var(--text-small);
+  color: var(--ink);
+}
+
+.codes__share {
+  display: block;
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+/* Absent, not unmeasured. The digit carries it; --ink-muted is 7.2:1 on the
+   field and only sets it back from the counts that are non-zero. */
+.codes__cell--zero {
+  color: var(--ink-muted);
+  font-size: var(--text-small);
+}
+
+/* ── The row control ──────────────────────────────────────────────────── */
+
+.codes__key {
+  padding: 0;
+  text-align: left;
+  font-weight: 400;
+}
+
+/* A real button, full-bleed in its cell so the whole code reads as the target.
+   It takes the page's focus ring inset, because the cell clips at its edge.
+
+   The case and tracking are reset explicitly. table.css dresses `th button` as
+   a sort control — uppercase, wide-tracked, faint — and that is right for a
+   column label and wrong here: `timeout` is the datum, and TIMEOUT set in
+   header tracking reads as a second header row. */
+.codes__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-tight);
+  width: 100%;
+  padding: var(--gap-tight);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* table.css gives every `th button` a sort caret. This one sorts nothing. */
+.codes__toggle::after {
+  content: none;
+}
+
+.codes__toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+.codes__toggle:hover {
+  background: var(--field-raised);
+}
+
+.codes__code {
+  font-family: var(--face-mono);
+  font-size: var(--text-small);
+  color: var(--ink);
+}
+
+/* The marker is a triangle that turns. It is decoration over a state the
+   button already announces, so it needs no label of its own. */
+.codes__toggle::before {
+  content: "";
+  flex: none;
+  border: 0.3em solid transparent;
+  border-left-color: var(--ink-muted);
+  margin-left: 0.15em;
+  transform-origin: 30% 50%;
+  transition: transform var(--dur) var(--ease);
+}
+
+.codes__toggle[aria-expanded="true"]::before {
+  transform: rotate(90deg);
+}
+
+/* ── The disclosure ───────────────────────────────────────────────────── */
+
+.codes__detail-row td {
+  padding: 0;
+  white-space: normal;
+  background: var(--field-sunk);
+}
+
+.codes__detail {
+  padding: var(--gap-tight) var(--gap-tight) var(--gap);
+}
+
+.codes__group + .codes__group {
+  margin-top: var(--gap);
+  padding-top: var(--gap-tight);
+  border-top: 1px solid var(--rule-hair);
+}
+
+.codes__group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 0 0 var(--gap-hair);
+  max-width: 44ch;
+}
+
+.codes__group-name {
+  font-family: var(--face-mono);
+  font-size: var(--text-small);
+  color: var(--ink);
+}
+
+.codes__group-count {
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+/* One proxy per line, elided in the middle by codes.js and carrying the full
+   value in `title`. A list rather than a block of preformatted text, because
+   each line is one proxy and a reader steps through them; the markers are
+   dropped so the IDs align on the left the way a log does. */
+.codes__proxies {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.codes__proxy {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  line-height: 1.7;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.codes__messages {
+  margin-top: var(--gap-tight);
+}
+
+.codes__messages-head {
+  margin: 0;
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* The raw text, kept only for `other` and `unknown`. It wraps: unlike a proxy
+   ID it is a sentence, and eliding a sentence loses the part that classifies
+   it — which is the entire reason these two buckets keep their messages. */
+.codes__message-list {
+  margin: var(--gap-hair) 0 0;
+  padding-left: 1.2em;
+  font-size: var(--text-micro);
+  line-height: 1.6;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+  max-width: 68ch;
+}
+
+/* ── Narrow ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 520px) {
+  /* Phone width. The code column and at least two providers fit; the rest is
+     reached by scrolling the frame, which is the data-table exception. The
+     disclosure is not part of that: it is measured against the viewport, so
+     opening a row never widens the table. */
+  .codes__group-head {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .codes__detail {
+    max-width: calc(100vw - 2 * var(--gutter));
+  }
+}

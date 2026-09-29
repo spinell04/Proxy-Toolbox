@@ -2,7 +2,6 @@ package tools
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,13 +36,16 @@ var tmRegions = []struct {
 
 type speedResult struct {
 	Index   int
-	Proxy   string
+	ProxyID string // canonical user:pass@host:port
 	Latency time.Duration
 	Status  int
 	Err     error
 }
 
-func testSingleProxy(index int, proxyURL, targetURL string) speedResult {
+func testSingleProxy(index int, p proxy.Proxy, targetURL string) speedResult {
+	proxyURL := p.URL() // dial address, keeps the http:// scheme
+	id := p.ID()        // canonical identity recorded in results
+
 	opts := []tlsclient.HttpClientOption{
 		tlsclient.WithTimeoutSeconds(15),
 		tlsclient.WithClientProfile(profiles.Chrome_133),
@@ -53,12 +55,12 @@ func testSingleProxy(index int, proxyURL, targetURL string) speedResult {
 	}
 	client, err := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(), opts...)
 	if err != nil {
-		return speedResult{Index: index, Proxy: proxyURL, Err: fmt.Errorf("client: %v", err)}
+		return speedResult{Index: index, ProxyID: id, Err: fmt.Errorf("client: %v", err)}
 	}
 
 	req, err := fhttp.NewRequest(fhttp.MethodGet, targetURL, nil)
 	if err != nil {
-		return speedResult{Index: index, Proxy: proxyURL, Err: fmt.Errorf("request: %v", err)}
+		return speedResult{Index: index, ProxyID: id, Err: fmt.Errorf("request: %v", err)}
 	}
 	req.Header.Set("User-Agent", speedUA)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -81,10 +83,10 @@ func testSingleProxy(index int, proxyURL, targetURL string) speedResult {
 	resp, err := client.Do(req)
 	elapsed := time.Since(start)
 	if err != nil {
-		return speedResult{Index: index, Proxy: proxyURL, Latency: elapsed, Err: err}
+		return speedResult{Index: index, ProxyID: id, Latency: elapsed, Err: err}
 	}
 	resp.Body.Close()
-	return speedResult{Index: index, Proxy: proxyURL, Latency: elapsed, Status: resp.StatusCode}
+	return speedResult{Index: index, ProxyID: id, Latency: elapsed, Status: resp.StatusCode}
 }
 
 func RunSpeedTester() {
@@ -129,21 +131,21 @@ func RunSpeedTester() {
 		return
 	}
 
-	fmt.Printf("\n─────────────────────────────────────────────────────────────\n")
-	fmt.Printf("  Region  : %s (%s)\n", region.Name, region.Code)
-	fmt.Printf("  Target  : %s\n", region.URL)
-	fmt.Printf("  Proxies : %d\n", len(proxies))
-	fmt.Printf("  Workers : %d\n", cfg.Workers)
-	fmt.Printf("  TLS     : Chrome 133 (tlsclient)\n")
-	fmt.Printf("─────────────────────────────────────────────────────────────\n\n")
-
-	fmt.Printf("%-5s  %-24s  %-10s  %s\n", "#", "Host", "Speed", "Status")
-	fmt.Println(strings.Repeat("─", 55))
-
 	workers := cfg.Workers
 	if len(proxies) < workers {
 		workers = len(proxies)
 	}
+
+	fmt.Printf("\n─────────────────────────────────────────────────────────────\n")
+	fmt.Printf("  Region  : %s (%s)\n", region.Name, region.Code)
+	fmt.Printf("  Target  : %s\n", region.URL)
+	fmt.Printf("  Proxies : %d\n", len(proxies))
+	fmt.Printf("  Workers : %d\n", workers)
+	fmt.Printf("  TLS     : Chrome 133 (tlsclient)\n")
+	fmt.Printf("─────────────────────────────────────────────────────────────\n\n")
+
+	fmt.Printf("%-5s  %-44s  %-10s  %s\n", "#", "Proxy", "Speed", "Status")
+	fmt.Println(strings.Repeat("─", tableWidth))
 
 	jobs := make(chan int, len(proxies))
 	resultsCh := make(chan speedResult, len(proxies))
@@ -154,13 +156,12 @@ func RunSpeedTester() {
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				r := testSingleProxy(i, proxies[i].URL(), region.URL)
-				r.Proxy = proxies[i].Host
-				resultsCh <- r
+				resultsCh <- testSingleProxy(i, proxies[i], region.URL)
 			}
 		}()
 	}
 
+	start := time.Now()
 	for i := range proxies {
 		jobs <- i
 	}
@@ -179,27 +180,24 @@ func RunSpeedTester() {
 	maxMs := cfg.TMMaxLatencyMs
 
 	for r := range resultsCh {
-		display := r.Proxy
-		if len(display) > 22 {
-			display = display[:19] + "..."
-		}
+		display := util.TruncateID(r.ProxyID, proxyColWidth)
 
 		if r.Err != nil {
-			fmt.Printf("%-5d  %-24s  %-10s  %s  %s\n",
+			fmt.Printf("%-5d  %-44s  %-10s  %s  %s\n",
 				r.Index+1, display, "—", util.Red("ERROR"), util.ShortenErr(r.Err))
-			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.Proxy, "", "ERROR", r.Err.Error()})
+			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.ProxyID, "", "ERROR", r.Err.Error()})
 			failCount++
 		} else if r.Status == 403 {
 			latStr := fmt.Sprintf("%dms", r.Latency.Milliseconds())
-			fmt.Printf("%-5d  %-24s  %-10s  %s\n",
+			fmt.Printf("%-5d  %-44s  %-10s  %s\n",
 				r.Index+1, display, latStr, util.Yellow("403 BLOCKED"))
-			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.Proxy, latStr, "403 BLOCKED", ""})
+			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.ProxyID, latStr, "403 BLOCKED", ""})
 			blockedCount++
 		} else {
 			latStr := fmt.Sprintf("%dms", r.Latency.Milliseconds())
-			fmt.Printf("%-5d  %-24s  %-10s  %s\n",
+			fmt.Printf("%-5d  %-44s  %-10s  %s\n",
 				r.Index+1, display, latStr, util.Green(fmt.Sprintf("%d OK", r.Status)))
-			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.Proxy, latStr, fmt.Sprintf("%d OK", r.Status), ""})
+			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.ProxyID, latStr, fmt.Sprintf("%d OK", r.Status), ""})
 			totalLatency += r.Latency
 			okLatencies = append(okLatencies, r.Latency)
 			okCount++
@@ -209,24 +207,22 @@ func RunSpeedTester() {
 		}
 	}
 
-	fmt.Println("\n" + strings.Repeat("─", 55))
+	fmt.Println("\n" + strings.Repeat("─", tableWidth))
 	fmt.Printf("\n  Total proxies  : %d\n", len(proxies))
 	fmt.Printf("  %s        : %d\n", util.Green("Working"), okCount)
 	fmt.Printf("  %s  : %d\n", util.Yellow("Blocked (403)"), blockedCount)
 	fmt.Printf("  %s         : %d\n", util.Red("Failed"), failCount)
 
+	// Computed once here and reused by the CSV export below, so the terminal
+	// summary and the exported file can never report different figures.
+	// util.Percentile sorts its own copy, so okLatencies needs no sorting.
+	var avg, p50, p95, fastest, slowest time.Duration
 	if okCount > 0 {
-		avg := totalLatency / time.Duration(okCount)
-
-		sort.Slice(okLatencies, func(i, j int) bool { return okLatencies[i] < okLatencies[j] })
-		p50 := okLatencies[len(okLatencies)/2]
-		p95idx := int(float64(len(okLatencies)) * 0.95)
-		if p95idx >= len(okLatencies) {
-			p95idx = len(okLatencies) - 1
-		}
-		p95 := okLatencies[p95idx]
-		fastest := okLatencies[0]
-		slowest := okLatencies[len(okLatencies)-1]
+		avg = totalLatency / time.Duration(okCount)
+		p50 = util.Percentile(okLatencies, 0.50)
+		p95 = util.Percentile(okLatencies, 0.95)
+		fastest = util.Percentile(okLatencies, 0)
+		slowest = util.Percentile(okLatencies, 1)
 
 		fmt.Printf("\n  ── Speed Stats (full TLS request) ──\n")
 		fmt.Printf("  Average        : %dms\n", avg.Milliseconds())
@@ -236,28 +232,28 @@ func RunSpeedTester() {
 		fmt.Printf("  Slowest        : %dms\n", slowest.Milliseconds())
 	}
 
-	if path := util.PromptExport("speedtest"); path != "" {
-		var summary [][]string
+	if path := util.PromptExport("speedtester", filePath); path != "" {
+		meta := util.RunMeta{
+			Tool:      "speedtester",
+			RunAt:     start,
+			ProxyFile: filePath,
+			Target:    region.URL,
+			Workers:   workers,
+		}
+		summary := meta.Rows()
 		summary = append(summary, []string{"Total proxies", fmt.Sprintf("%d", len(proxies))})
 		summary = append(summary, []string{"Working", fmt.Sprintf("%d", okCount)})
 		summary = append(summary, []string{"Blocked (403)", fmt.Sprintf("%d", blockedCount)})
 		summary = append(summary, []string{"Failed", fmt.Sprintf("%d", failCount)})
 		if okCount > 0 {
-			avg := totalLatency / time.Duration(okCount)
-			p50 := okLatencies[len(okLatencies)/2]
-			p95idx := int(float64(len(okLatencies)) * 0.95)
-			if p95idx >= len(okLatencies) {
-				p95idx = len(okLatencies) - 1
-			}
-			p95 := okLatencies[p95idx]
 			summary = append(summary, []string{"Average", fmt.Sprintf("%dms", avg.Milliseconds())})
 			summary = append(summary, []string{"Median (p50)", fmt.Sprintf("%dms", p50.Milliseconds())})
 			summary = append(summary, []string{"p95", fmt.Sprintf("%dms", p95.Milliseconds())})
-			summary = append(summary, []string{"Fastest", fmt.Sprintf("%dms", okLatencies[0].Milliseconds())})
-			summary = append(summary, []string{"Slowest", fmt.Sprintf("%dms", okLatencies[len(okLatencies)-1].Milliseconds())})
+			summary = append(summary, []string{"Fastest", fmt.Sprintf("%dms", fastest.Milliseconds())})
+			summary = append(summary, []string{"Slowest", fmt.Sprintf("%dms", slowest.Milliseconds())})
 		}
 		summary = append(summary, []string{"", ""})
-		summary = append(summary, []string{"#", "Host", "Speed", "Status", "Error"})
+		summary = append(summary, []string{"#", "Proxy", "Latency", "Status", "Error"})
 		summary = append(summary, csvRows...)
 
 		header := []string{"Summary", "Value"}
@@ -269,7 +265,7 @@ func RunSpeedTester() {
 	}
 
 	if len(savedLines) > 0 {
-		label := "no latency limit"
+		label := "all working proxies"
 		if maxMs > 0 {
 			label = fmt.Sprintf("latency < %dms", maxMs)
 		}

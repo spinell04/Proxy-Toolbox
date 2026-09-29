@@ -24,16 +24,17 @@ var ipEndpoints = []string{
 
 type ipResult struct {
 	Index   int
-	Host    string
+	ProxyID string // canonical user:pass@host:port
 	IP      string
 	Elapsed time.Duration
 	Err     error
 }
 
 func checkIP(index int, p proxy.Proxy) ipResult {
+	id := p.ID()
 	parsed, err := url.Parse(p.URL())
 	if err != nil {
-		return ipResult{Index: index, Host: p.Host, Err: err}
+		return ipResult{Index: index, ProxyID: id, Err: err}
 	}
 
 	client := &http.Client{
@@ -60,12 +61,12 @@ func checkIP(index int, p proxy.Proxy) ipResult {
 		}
 		return ipResult{
 			Index:   index,
-			Host:    p.Host,
+			ProxyID: id,
 			IP:      strings.TrimSpace(string(body)),
 			Elapsed: time.Since(start),
 		}
 	}
-	return ipResult{Index: index, Host: p.Host, Err: lastErr}
+	return ipResult{Index: index, ProxyID: id, Err: lastErr}
 }
 
 func RunIPTester() {
@@ -98,10 +99,23 @@ func RunIPTester() {
 	fmt.Printf("\nFile    : %s\n", filePath)
 	fmt.Printf("Proxies : %d\n", len(proxies))
 	fmt.Printf("Workers : %d\n\n", cfg.Workers)
-	fmt.Printf("%-5s  %-24s  %-18s  %s\n", "#", "Host", "Exit IP", "Latency")
-	fmt.Println(strings.Repeat("-", 65))
+	fmt.Printf("%-5s  %-36s  %-18s  %s\n", "#", "Proxy", "Exit IP", "Latency")
+	fmt.Println(strings.Repeat("-", ipTableWidth))
 
-	jobs := make(chan int, len(proxies))
+	ids := make([]string, len(proxies))
+	for i, p := range proxies {
+		ids[i] = p.ID()
+	}
+	// A repeated proxy asks the gateway for the same sticky session twice, so
+	// firing the copies at once measures one instant rather than the rotation
+	// the repeat was written to look for. See repeatgate.go.
+	gate := newRepeatGate(ids, repeatDelay)
+	if gate.repeated() {
+		fmt.Printf("%d of %d lines are repeated proxies. Each copy after the first is checked %v behind the one before it, so this run is slower on purpose.\n\n",
+			gate.repeats(), len(proxies), repeatDelay)
+	}
+
+	jobs := make(chan int, len(gate.once))
 	results := make(chan ipResult, len(proxies))
 
 	var wg sync.WaitGroup
@@ -115,13 +129,22 @@ func RunIPTester() {
 		}()
 	}
 
+	// The repeats run outside the pool, so spacing them cannot starve it.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		gate.runRepeats(func(i int) {
+			results <- checkIP(i, proxies[i])
+		})
+	}()
+
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
 	start := time.Now()
-	for i := range proxies {
+	for _, i := range gate.once {
 		jobs <- i
 	}
 	close(jobs)
@@ -133,13 +156,10 @@ func RunIPTester() {
 	for r := range results {
 		ipResults = append(ipResults, r)
 
-		display := r.Host
-		if len(display) > 22 {
-			display = display[:19] + "..."
-		}
+		display := util.TruncateID(r.ProxyID, ipProxyColWidth)
 
 		if r.Err != nil {
-			fmt.Printf("%-5d  %-24s  ERROR  %s\n", r.Index+1, display, util.ShortenErr(r.Err))
+			fmt.Printf("%-5d  %-36s  ERROR  %s\n", r.Index+1, display, util.ShortenErr(r.Err))
 			errors++
 			continue
 		}
@@ -156,12 +176,12 @@ func RunIPTester() {
 				len(ipLines[r.IP]), strings.Join(prev, ", "))
 		}
 
-		fmt.Printf("%-5d  %-24s  %-18s  %5dms%s\n",
+		fmt.Printf("%-5d  %-36s  %-18s  %5dms%s\n",
 			r.Index+1, display, r.IP, r.Elapsed.Milliseconds(), repeated)
 	}
 
 	elapsed := time.Since(start).Round(time.Millisecond)
-	fmt.Println("\n" + strings.Repeat("-", 65))
+	fmt.Println("\n" + strings.Repeat("-", ipTableWidth))
 	totalOk := len(proxies) - errors
 	unique := len(ipLines)
 
@@ -194,9 +214,17 @@ func RunIPTester() {
 		}
 	}
 
-	if path := util.PromptExport("iptester"); path != "" {
-		// Summary rows
-		var csvRows [][]string
+	if path := util.PromptExport("iptester", filePath); path != "" {
+		// Summary rows, preceded by the run metadata that makes the export
+		// self-describing.
+		meta := util.RunMeta{
+			Tool:      "iptester",
+			RunAt:     start,
+			ProxyFile: filePath,
+			Target:    "", // iptester has no target; it reports exit IPs
+			Workers:   cfg.Workers,
+		}
+		csvRows := meta.Rows()
 		csvRows = append(csvRows, []string{"Proxies tested", strconv.Itoa(len(proxies))})
 		csvRows = append(csvRows, []string{"Errors", strconv.Itoa(errors)})
 		csvRows = append(csvRows, []string{"Unique IPs", fmt.Sprintf("%d / %d", unique, totalOk)})
@@ -213,6 +241,23 @@ func RunIPTester() {
 				}
 				csvRows = append(csvRows, []string{ip, strconv.Itoa(len(lines)), strings.Join(strs, ", ")})
 			}
+		}
+
+		// Per-proxy detail. Needed so the compare dashboard can join this run
+		// against runs from other tools and enrich them with exit IPs.
+		csvRows = append(csvRows, []string{"", ""})
+		csvRows = append(csvRows, []string{"#", "Proxy", "Exit IP", "Latency", "Error"})
+		for _, r := range ipResults {
+			errStr := ""
+			latStr := ""
+			if r.Err != nil {
+				errStr = r.Err.Error()
+			} else {
+				latStr = fmt.Sprintf("%dms", r.Elapsed.Milliseconds())
+			}
+			csvRows = append(csvRows, []string{
+				strconv.Itoa(r.Index + 1), r.ProxyID, r.IP, latStr, errStr,
+			})
 		}
 
 		header := []string{"Summary", "Value"}

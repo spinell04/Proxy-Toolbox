@@ -1,0 +1,154 @@
+/*
+  Compare dashboard — the shell: skip link, masthead, section furniture.
+
+  Direction: Swiss/editorial instrument panel. Rules and whitespace carry the
+  structure instead of cards; figures are monospaced and tabular so columns
+  align optically; one signal accent (vermilion) marks state and nothing else.
+  Dense on purpose — this is read next to a terminal, not browsed.
+
+  The table lives in table.css and the standalone states in notices.css.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; a handful
+  of sizes are — the page maximum, hairline border widths and the breakpoints —
+  and tokens.css says why. Motion here is `transform` and `opacity` only.
+*/
+
+/* ── Skip link ────────────────────────────────────────────────────────── */
+
+/* At the 50-run cap the table holds 61 tab stops, and Tasks 19-22 mount their
+   panels below all of them. The link is off-screen by transform — not by
+   display — so it is in the tab order from the first keypress. */
+.skip-link {
+  position: absolute;
+  z-index: 5;
+  top: var(--gap-hair);
+  left: var(--gutter);
+  padding: var(--gap-tight) var(--gap);
+  background: var(--field-raised);
+  border: 1px solid var(--rule-heavy);
+  color: var(--ink);
+  font-family: var(--face-mono);
+  font-size: var(--text-small);
+  text-decoration: none;
+  transform: translateY(-300%);
+  transition: transform var(--dur) var(--ease);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* ── Masthead ─────────────────────────────────────────────────────────── */
+
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: var(--gap-wide) var(--gutter) var(--gap);
+  border-bottom: 2px solid var(--rule-heavy);
+  max-width: 1800px;
+  margin-inline: auto;
+}
+
+.eyebrow {
+  margin: 0 0 var(--gap-hair);
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.masthead__title {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+  line-height: 0.9;
+}
+
+/* A short accent stroke hung off the title — the one piece of pure
+   typographic furniture, and the only place the accent appears unprompted. */
+.masthead__rule {
+  flex: 0 0 auto;
+  width: clamp(2rem, 6vw, 5rem);
+  height: 0.35em;
+  background: var(--accent);
+  transform-origin: left center;
+  animation: rule-in var(--dur) var(--ease) both;
+}
+
+@keyframes rule-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.stat-strip {
+  display: flex;
+  gap: var(--gap-wide);
+  margin: 0;
+  padding-bottom: var(--gap-hair);
+}
+
+.stat dt {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.stat dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-lead);
+  line-height: 1.2;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
+
+main {
+  max-width: 1800px;
+  margin-inline: auto;
+  padding: var(--gap-wide) var(--gutter) var(--gap-section);
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-tight);
+  margin-bottom: var(--gap);
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+}
+
+.section-note {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+/* No `.views:empty { display: none }`: the section is the skip link's target,
+   and a display:none target cannot receive focus. It occupies nothing when
+   empty anyway — the rules and spacing belong to its children. */
+
+/* Registered views hang below the inventory, each under its own rule. */
+.views > section {
+  margin-top: var(--gap-section);
+  padding-top: var(--gap);
+  border-top: 2px solid var(--rule-heavy);
+}

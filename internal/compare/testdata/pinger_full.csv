@@ -1,0 +1,18 @@
+Summary,Value
+Tool,pinger
+Run at,2026-09-19T14:32:07Z
+Proxy file,residential_de.txt
+Target,https://google.com
+Workers,100
+Proxies tested,5
+Successful,2
+Errors,3
+Total time,1.2s
+Average latency,340ms
+,
+#,Proxy,Latency,Status,Error
+1,alice:pw@1.2.3.4:8080,300ms,HTTP 200,
+2,bob:pw@1.2.3.5:8080,380ms,HTTP 403,
+3,carol:pw@1.2.3.6:8080,,ERROR,dial tcp 1.2.3.6:8080: i/o timeout
+4,dave:pw@1.2.3.7:8080,,ERROR,proxy rejected: HTTP/1.1 407 Proxy Authentication Required
+5,eve:pw@1.2.3.8:8080,90ms,HTTP 200,unexpected EOF after headers

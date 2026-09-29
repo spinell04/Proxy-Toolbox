@@ -1,0 +1,295 @@
+/*
+  Compare dashboard — the comparison views.
+
+  The composition: the comparability banner, the join coverage, the panel that
+  every chart and table sits in, and the status-flip list. The chart surfaces
+  themselves are in charts.css.
+
+  The same Swiss instrument-panel direction as the rest of the page — no card,
+  no shadow, no radius. What frames a panel is the hairline rule above it and
+  the whitespace around it, and above 1000px the panel's label hangs in a
+  margin column so the chart keeps the measure to itself. That marginal column
+  is the one piece of composition these views add, and it is what stops four
+  charts in a row from reading as a card stack.
+
+  Tokens live in tokens.css. No colour or duration is hardcoded here; a handful
+  of sizes are — hairline border widths, the label column and the breakpoints —
+  and tokens.css says why. Motion is `transform` and `opacity` only.
+*/
+
+/* ── Comparability banner ─────────────────────────────────────────────── */
+
+/* The one thing on the page allowed to interrupt. It is set in the accent
+   only when something actually differs; agreement gets the quiet treatment,
+   because a warning colour that is always on stops being a warning. */
+.banner {
+  border-left: 3px solid var(--rule-mid);
+  padding: var(--gap-tight) var(--gap) var(--gap-tight) var(--gap);
+  margin-bottom: var(--gap-wide);
+  max-width: 78ch;
+}
+
+.banner--alert {
+  border-left-width: 6px;
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.banner__label {
+  margin: 0;
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.banner--alert .banner__label {
+  color: var(--accent-ink);
+}
+
+.banner__lead {
+  margin: var(--gap-hair) 0 0;
+  font-size: var(--text-lead);
+  letter-spacing: var(--track-tight);
+  line-height: 1.3;
+  max-width: 44ch;
+}
+
+.banner__fields {
+  margin: var(--gap) 0 0;
+  display: grid;
+  gap: var(--gap-tight) var(--gap);
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.banner__fields dt {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  padding-top: 0.15em;
+}
+
+.banner__fields dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.banner__values {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.banner__values li + li {
+  margin-top: var(--gap-hair);
+  padding-top: var(--gap-hair);
+  border-top: 1px solid var(--rule-hair);
+}
+
+.banner__value {
+  display: block;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+.banner__where {
+  display: block;
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.banner__excluded {
+  margin: var(--gap) 0 0;
+  padding-top: var(--gap-tight);
+  border-top: 1px solid var(--rule-hair);
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+}
+
+.banner__excluded strong {
+  color: var(--ink);
+}
+
+/* ── Join coverage ────────────────────────────────────────────────────── */
+
+.coverage {
+  margin-bottom: var(--gap-wide);
+}
+
+.coverage__lead {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-muted);
+}
+
+.coverage__lead strong {
+  font-size: var(--text-lead);
+  color: var(--ink);
+  letter-spacing: var(--track-tight);
+}
+
+/* A and B named once, side by side, so the sign of every delta below has a
+   referent. Two columns at any width — it is two facts, and stacking them
+   loses the pairing that is the whole point. */
+.coverage__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+  margin: var(--gap) 0 0;
+  max-width: 62ch;
+}
+
+.coverage__run {
+  border-top: 2px solid var(--rule-heavy);
+  padding-top: var(--gap-hair);
+  min-width: 0;
+}
+
+.coverage__run dt {
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.coverage__run dd {
+  margin: 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+.coverage__run dd code {
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+}
+
+/* ── Panels ───────────────────────────────────────────────────────────── */
+
+.panel {
+  padding-block: var(--gap-wide);
+  border-top: 1px solid var(--rule-hair);
+}
+
+.panel:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.panel__label {
+  margin: 0;
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.panel__note {
+  margin: var(--gap-hair) 0 0;
+  font-size: var(--text-small);
+  color: var(--ink-muted);
+  max-width: 40ch;
+}
+
+.panel__empty {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-small);
+}
+
+.panel__body {
+  min-width: 0;
+}
+
+@media (min-width: 1000px) {
+  /* The label moves into the margin. Asymmetric on purpose: the chart is the
+     measure, and the label annotates it from outside rather than sitting on
+     top of it like a card header. */
+  .panel {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    column-gap: var(--gap-wide);
+  }
+
+  .panel__head {
+    position: sticky;
+    top: var(--gap);
+    align-self: start;
+  }
+}
+
+/* ── Status flips ─────────────────────────────────────────────────────── */
+
+.flips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flips__item {
+  padding-block: var(--gap-tight);
+  border-top: 1px solid var(--rule-hair);
+}
+
+.flips__item:first-child {
+  border-top: 0;
+}
+
+.flips__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin: 0;
+  max-width: 44ch;
+}
+
+.flips__transition {
+  font-family: var(--face-mono);
+  font-size: var(--text-lead);
+  letter-spacing: var(--track-tight);
+}
+
+.flips__count {
+  color: var(--ink-muted);
+  font-size: var(--text-small);
+}
+
+/* Preformatted rather than a list: one proxy per line, selectable as a block,
+   because what a reader does with these is copy them into a file. Not a
+   scroll container — it wraps and grows, so it needs no tab stop of its own. */
+.flips__proxies {
+  margin: 0;
+  font-family: var(--face-mono);
+  font-size: var(--text-micro);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+  max-width: 68ch;
+}
+
+/* ── Narrow ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 520px) {
+  .coverage__pair {
+    gap: var(--gap-tight);
+  }
+
+  .flips__head {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .banner__fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--gap-hair);
+  }
+}

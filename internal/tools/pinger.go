@@ -20,20 +20,21 @@ import (
 
 type pingResult struct {
 	Index   int
-	Host    string
+	ProxyID string // canonical user:pass@host:port
 	Latency time.Duration
 	Status  int
 	Err     error
 }
 
 func pingRawTCP(index int, p proxy.Proxy, host string) pingResult {
+	id := p.ID()
 	proxyAddr := net.JoinHostPort(p.Host, p.Port)
 	target := host + ":80"
 
 	start := time.Now()
 	conn, err := net.DialTimeout("tcp", proxyAddr, 20*time.Second)
 	if err != nil {
-		return pingResult{Index: index, Host: p.Host, Latency: time.Since(start), Err: fmt.Errorf("proxy connect: %w", err)}
+		return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Err: fmt.Errorf("proxy connect: %w", err)}
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(20 * time.Second))
@@ -42,26 +43,27 @@ func pingRawTCP(index int, p proxy.Proxy, host string) pingResult {
 	encoded := base64.StdEncoding.EncodeToString([]byte(auth))
 	connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\n\r\n", target, target, encoded)
 	if _, err = fmt.Fprint(conn, connectReq); err != nil {
-		return pingResult{Index: index, Host: p.Host, Latency: time.Since(start), Err: fmt.Errorf("CONNECT send: %w", err)}
+		return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Err: fmt.Errorf("CONNECT send: %w", err)}
 	}
 
 	buf := make([]byte, 256)
 	n, err := conn.Read(buf)
 	if err != nil {
-		return pingResult{Index: index, Host: p.Host, Latency: time.Since(start), Err: fmt.Errorf("CONNECT response: %w", err)}
+		return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Err: fmt.Errorf("CONNECT response: %w", err)}
 	}
 	response := string(buf[:n])
 	if !strings.Contains(response, "200") {
-		return pingResult{Index: index, Host: p.Host, Latency: time.Since(start), Err: fmt.Errorf("proxy rejected: %s", strings.TrimSpace(response))}
+		return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Err: fmt.Errorf("proxy rejected: %s", strings.TrimSpace(response))}
 	}
 
-	return pingResult{Index: index, Host: p.Host, Latency: time.Since(start), Status: 0}
+	return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Status: 0}
 }
 
 func pingHTTP(index int, p proxy.Proxy, target string) pingResult {
+	id := p.ID()
 	parsed, err := url.Parse(p.URL())
 	if err != nil {
-		return pingResult{Index: index, Host: p.Host, Err: fmt.Errorf("bad proxy URL: %w", err)}
+		return pingResult{Index: index, ProxyID: id, Err: fmt.Errorf("bad proxy URL: %w", err)}
 	}
 
 	client := &http.Client{
@@ -76,11 +78,11 @@ func pingHTTP(index int, p proxy.Proxy, target string) pingResult {
 	resp, err := client.Get(target)
 	elapsed := time.Since(start)
 	if err != nil {
-		return pingResult{Index: index, Host: p.Host, Latency: elapsed, Err: err}
+		return pingResult{Index: index, ProxyID: id, Latency: elapsed, Err: err}
 	}
 	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
-	return pingResult{Index: index, Host: p.Host, Latency: elapsed, Status: resp.StatusCode}
+	return pingResult{Index: index, ProxyID: id, Latency: elapsed, Status: resp.StatusCode}
 }
 
 func pingProxy(index int, p proxy.Proxy, target string) pingResult {
@@ -155,8 +157,8 @@ func RunPinger() {
 	fmt.Printf("Target  : %s\n", target)
 	fmt.Printf("Mode    : %s\n", mode)
 	fmt.Printf("Workers : %d\n\n", cfg.Workers)
-	fmt.Printf("%-5s  %-24s  %-10s  %s\n", "#", "Host", "Latency", "Status")
-	fmt.Println(strings.Repeat("-", 55))
+	fmt.Printf("%-5s  %-44s  %-10s  %s\n", "#", "Proxy", "Latency", "Status")
+	fmt.Println(strings.Repeat("-", tableWidth))
 
 	jobs := make(chan int, len(proxies))
 	results := make(chan pingResult, len(proxies))
@@ -191,15 +193,12 @@ func RunPinger() {
 	maxMs := cfg.PingMaxLatencyMs
 
 	for r := range results {
-		display := r.Host
-		if len(display) > 22 {
-			display = display[:19] + "..."
-		}
+		display := util.TruncateID(r.ProxyID, proxyColWidth)
 
 		if r.Err != nil {
-			fmt.Printf("%-5d  %-24s  %-10s  ERROR  %s\n",
+			fmt.Printf("%-5d  %-44s  %-10s  ERROR  %s\n",
 				r.Index+1, display, "-", util.ShortenErr(r.Err))
-			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.Host, "", "ERROR", r.Err.Error()})
+			csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.ProxyID, "", "ERROR", r.Err.Error()})
 			errors++
 			continue
 		}
@@ -214,12 +213,12 @@ func RunPinger() {
 			status = fmt.Sprintf("HTTP %d", r.Status)
 		}
 		latStr := fmt.Sprintf("%dms", r.Latency.Milliseconds())
-		fmt.Printf("%-5d  %-24s  %-10s  %s\n",
+		fmt.Printf("%-5d  %-44s  %-10s  %s\n",
 			r.Index+1, display, latStr, status)
-		csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.Host, latStr, status, ""})
+		csvRows = append(csvRows, []string{fmt.Sprintf("%d", r.Index+1), r.ProxyID, latStr, status, ""})
 	}
 
-	fmt.Println("\n" + strings.Repeat("-", 55))
+	fmt.Println("\n" + strings.Repeat("-", tableWidth))
 	fmt.Printf("\nProxies tested   : %d\n", len(proxies))
 	fmt.Printf("Successful       : %d\n", success)
 	fmt.Printf("Errors           : %d\n", errors)
@@ -229,9 +228,16 @@ func RunPinger() {
 		fmt.Printf("Average latency  : %dms\n", avg.Milliseconds())
 	}
 
-	if path := util.PromptExport("pinger"); path != "" {
+	if path := util.PromptExport("pinger", filePath); path != "" {
 		elapsed := time.Since(start).Round(time.Millisecond)
-		var summary [][]string
+		meta := util.RunMeta{
+			Tool:      "pinger",
+			RunAt:     start,
+			ProxyFile: filePath,
+			Target:    target,
+			Workers:   cfg.Workers,
+		}
+		summary := meta.Rows()
 		summary = append(summary, []string{"Proxies tested", fmt.Sprintf("%d", len(proxies))})
 		summary = append(summary, []string{"Successful", fmt.Sprintf("%d", success)})
 		summary = append(summary, []string{"Errors", fmt.Sprintf("%d", errors)})
@@ -241,7 +247,7 @@ func RunPinger() {
 			summary = append(summary, []string{"Average latency", fmt.Sprintf("%dms", avg.Milliseconds())})
 		}
 		summary = append(summary, []string{"", ""})
-		summary = append(summary, []string{"#", "Host", "Latency", "Status", "Error"})
+		summary = append(summary, []string{"#", "Proxy", "Latency", "Status", "Error"})
 		summary = append(summary, csvRows...)
 
 		header := []string{"Summary", "Value"}
@@ -253,7 +259,7 @@ func RunPinger() {
 	}
 
 	if len(savedLines) > 0 {
-		label := "no latency limit"
+		label := "all working proxies"
 		if maxMs > 0 {
 			label = fmt.Sprintf("latency < %dms", maxMs)
 		}

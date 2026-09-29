@@ -33,11 +33,11 @@ When you run Ping Test, press **Enter** to use it, or type something different.
 ## Reading the output
 
 ```
-#      Host                      Latency     Status
--------------------------------------------------------
-1      1.2.3.4                   320ms       HTTP 200
-2      5.6.7.8                   410ms       HTTP 200
-3      9.10.11.12                -           ERROR  proxy connect: i/o timeout
+#      Proxy                                         Latency     Status
+-------------------------------------------------------------------------
+1      admin:secret@1.2.3.4:8080                     320ms       HTTP 200
+2      admin:secret@5.6.7.8:8080                     410ms       HTTP 200
+3      admin:secret@9.10.11.12:8080                  -           ERROR  proxy connect: i/o timeout
 ...
 
 Proxies tested   : 1000
@@ -47,26 +47,32 @@ Total time       : 42.1s
 Average latency  : 384ms
 ```
 
+- **Proxy** is the full `user:pass@host:port`, elided in the middle when it is too wide for the column.
 - **Status** shows `OK` for raw TCP success, or `HTTP <code>` for HTTP/HTTPS modes.
 - **ERROR** lines include a shortened reason (timeout, CONNECT rejected, DNS failure, etc.).
 - **Average latency** is the mean across successful requests only.
 
 ## CSV export
 
-The export has the summary on top followed by per-proxy rows:
+The export opens with five metadata rows describing the run, then the summary, then the per-proxy rows:
 
 ```
 Summary,Value
+Tool,pinger
+Run at,2026-09-19T14:32:07Z
+Proxy file,residential.txt
+Target,https://google.com
+Workers,40
 Proxies tested,1000
 Successful,985
 Errors,15
 Total time,42.1s
 Average latency,384ms
 ,
-#,Host,Latency,Status,Error
-1,1.2.3.4,320ms,HTTP 200,
-2,5.6.7.8,410ms,HTTP 200,
-3,9.10.11.12,,ERROR,proxy connect: i/o timeout
+#,Proxy,Latency,Status,Error
+1,admin:secret@1.2.3.4:8080,320ms,HTTP 200,
+2,admin:secret@5.6.7.8:8080,410ms,HTTP 200,
+3,admin:secret@9.10.11.12:8080,,ERROR,proxy connect: i/o timeout
 ...
 ```
 

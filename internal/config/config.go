@@ -15,6 +15,14 @@ const (
 	DefaultWorkers       = 20
 	DefaultDownThreshold = 3
 	DefaultUpThreshold   = 2
+
+	// Interval defaults, in different units by design. The downtime monitor
+	// sleeps between individual checks; the session monitor checks the whole
+	// list in parallel and sleeps between cycles, so its value is the sampling
+	// period directly. It is far larger because every check costs a request to
+	// a free third-party IP endpoint, and the volume scales with the list.
+	DefaultMonitorIntervalMs = 1000
+	DefaultSessionIntervalMs = 60000
 )
 
 // Config holds settings from config.txt.
@@ -24,6 +32,8 @@ type Config struct {
 	DiscordWebhook       string
 	DiscordDownThreshold int
 	DiscordUpThreshold   int
+	MonitorIntervalMs    int
+	SessionIntervalMs    int
 	PingMaxLatencyMs     int
 	TMMaxLatencyMs       int
 	BayernMaxLatencyMs   int
@@ -45,6 +55,8 @@ func Load() Config {
 		Workers:              DefaultWorkers,
 		DiscordDownThreshold: DefaultDownThreshold,
 		DiscordUpThreshold:   DefaultUpThreshold,
+		MonitorIntervalMs:    DefaultMonitorIntervalMs,
+		SessionIntervalMs:    DefaultSessionIntervalMs,
 	}
 	path := basedir.Path(fileName)
 
@@ -83,6 +95,14 @@ func Load() Config {
 		case "discord_up_threshold":
 			if n, err := strconv.Atoi(val); err == nil && n > 0 {
 				cfg.DiscordUpThreshold = n
+			}
+		case "monitor_interval_ms":
+			if n := parseLatency(val); n > 0 {
+				cfg.MonitorIntervalMs = n
+			}
+		case "session_interval_ms":
+			if n := parseLatency(val); n > 0 {
+				cfg.SessionIntervalMs = n
 			}
 		case "ping_max_latency_ms":
 			cfg.PingMaxLatencyMs = parseLatency(val)

@@ -325,10 +325,10 @@ func RunMonitor() {
 	}
 
 	// Prompt for interval
-	fmt.Print("Interval between pings in ms (default 1000): ")
+	intervalMs := cfg.MonitorIntervalMs
+	fmt.Printf("Interval between pings in ms (default %d): ", intervalMs)
 	intervalInput, _ := reader.ReadString('\n')
 	intervalInput = strings.TrimSpace(intervalInput)
-	intervalMs := 1000
 	if intervalInput != "" {
 		if n, err := strconv.Atoi(intervalInput); err == nil && n > 0 {
 			intervalMs = n

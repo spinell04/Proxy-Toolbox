@@ -56,10 +56,12 @@ Proxy-Toolbox/
 ├── docs/                      # This documentation
 ├── internal/
 │   ├── basedir/               # Resolves binary's own directory
+│   ├── compare/               # CSV parsing and comparison statistics
 │   ├── config/                # config.txt loader
+│   ├── dashboard/             # Compare Results: HTTP server, JSON API, embedded web/
 │   ├── proxy/                 # Parse + file selection
-│   ├── tools/                 # The 7 tools
-│   └── util/                  # Colors, export, error helpers
+│   ├── tools/                 # The 8 menu tools other than Compare Results
+│   └── util/                  # Colors, export, percentiles, error helpers
 ├── go.mod
 └── go.sum
 ```

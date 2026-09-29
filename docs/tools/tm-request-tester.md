@@ -1,5 +1,13 @@
 # TM Request Tester
 
+The main menu's **Site Request Test** entry opens a submenu with two testers:
+
+* **Ticketmaster** — full request to a Ticketmaster region (this page)
+* **Bayern** — [full request to the FC Bayern ticket shop](bayern-tester.md)
+* **Back** — return to the main menu
+
+Both send a full page request through every proxy, which is what separates them from the [Ping Test](ping-test.md): they measure a real fetch against real bot protection, not a connect.
+
 ## What it does
 
 Sends a full, browser-like TLS request to a Ticketmaster region through each proxy. Unlike the [Ping Test](ping-test.md), this uses a realistic Chrome TLS fingerprint — so if a proxy is going to get blocked by Ticketmaster's bot protection, you'll see it here.
@@ -27,12 +35,12 @@ Pick the region that matches where your proxies are geo-located — testing Germ
 ## Reading the output
 
 ```
-#      Host                      Speed       Status
--------------------------------------------------------
-1      1.2.3.4                   520ms       200 OK
-2      5.6.7.8                   480ms       200 OK
-3      9.10.11.12                910ms       403 BLOCKED
-4      13.14.15.16               —           ERROR  timeout
+#      Proxy                                         Speed       Status
+─────────────────────────────────────────────────────────────────────────
+1      admin:secret@1.2.3.4:8080                     520ms       200 OK
+2      admin:secret@5.6.7.8:8080                     480ms       200 OK
+3      admin:secret@9.10.11.12:8080                  910ms       403 BLOCKED
+4      admin:secret@13.14.15.16:8080                 —           ERROR  timeout
 ...
 
   Total proxies  : 1000
@@ -60,13 +68,22 @@ Pick the region that matches where your proxies are geo-located — testing Germ
 
 - **Average** — arithmetic mean of all successful (200) latencies
 - **Median (p50)** — middle value; less sensitive to outliers than average
-- **p95** — 95% of successful requests were faster than this; useful for understanding the tail
+- **p95** — 95% of successful requests came back in this time or less; useful for understanding the tail
 - **Fastest / Slowest** — extremes; if the slowest is huge, you probably have a handful of bad proxies dragging stats
+
+Percentiles use the **nearest-rank** method: the successful latencies are sorted and the value at rank `ceil(p × n)` is reported. Nothing is interpolated, so a reported p50 or p95 is always a latency some real proxy recorded. The [compare dashboard](compare-results.md) uses the same method, so its figures match these.
 
 ## CSV export
 
+Five metadata rows describing the run, then the summary, then the per-proxy rows:
+
 ```
 Summary,Value
+Tool,speedtester
+Run at,2026-09-19T15:11:40Z
+Proxy file,residential.txt
+Target,https://www.ticketmaster.com
+Workers,40
 Total proxies,1000
 Working,800
 Blocked (403),150
@@ -77,10 +94,14 @@ p95,1200ms
 Fastest,180ms
 Slowest,3500ms
 ,
-#,Host,Speed,Status,Error
-1,1.2.3.4,320ms,200 OK,
+#,Proxy,Latency,Status,Error
+1,admin:secret@1.2.3.4:8080,320ms,200 OK,
+2,admin:secret@5.6.7.8:8080,910ms,403 BLOCKED,
+3,admin:secret@9.10.11.12:8080,,ERROR,timeout
 ...
 ```
+
+The on-screen column is headed **Speed**; in the CSV the same figure is headed **Latency**.
 
 See [Exporting Results](../reference/exporting-results.md).
 

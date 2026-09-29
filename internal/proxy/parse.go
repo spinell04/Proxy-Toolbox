@@ -22,6 +22,23 @@ func (p Proxy) URL() string {
 	return fmt.Sprintf("http://%s:%s@%s:%s", p.User, p.Password, p.Host, p.Port)
 }
 
+// ID returns the canonical identity of a proxy: user:pass@host:port.
+//
+// The full credential string is the identity, not host:port. Gateway-style
+// pools share a single host and port across many session credentials, so
+// host:port would collapse hundreds of distinct proxies into one key.
+//
+// All accepted input formats normalize to this form, so the same proxy
+// written differently in two files still joins. The host is lowercased
+// because DNS names are case-insensitive; credentials are not, and are
+// kept verbatim.
+//
+// Credentials are assumed not to contain ":" or "@"; ParseLine's grammar
+// cannot produce such fields from the colon-delimited formats.
+func (p Proxy) ID() string {
+	return fmt.Sprintf("%s:%s@%s:%s", p.User, p.Password, strings.ToLower(p.Host), p.Port)
+}
+
 // ParseLine parses a proxy line in any common format into a Proxy.
 // Supported formats:
 //   - host:port:user:pass
