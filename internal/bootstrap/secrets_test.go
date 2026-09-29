@@ -20,6 +20,32 @@ var credentialPatterns = []struct {
 	{"Telegram bot token", regexp.MustCompile(`api\.telegram\.org/bot\d+:\S+`)},
 }
 
+// proxyCredential matches user:pass@host:port. RE2 has no lookahead, so the
+// reserved-domain exemption is applied afterwards in isFixtureHost rather than
+// inside the pattern.
+//
+// Added after a real proxy credential reached a commit as a test fixture: the
+// scanner looked only for webhooks, so the very thing it exists to prevent
+// walked straight past it.
+var proxyCredential = regexp.MustCompile(
+	`[A-Za-z0-9][A-Za-z0-9._-]{2,}:[A-Za-z0-9][A-Za-z0-9._~+/-]{7,}@([A-Za-z0-9.-]+):\d{2,5}`)
+
+// isFixtureHost reports whether a host is reserved for documentation and
+// testing (RFC 2606 / RFC 6761). Those are what a fixture should use, and a
+// credential on one grants nothing.
+func isFixtureHost(host string) bool {
+	h := strings.ToLower(strings.TrimSuffix(host, "."))
+	for _, suffix := range []string{
+		".invalid", ".example", ".test", ".localhost",
+		".example.com", ".example.net", ".example.org",
+	} {
+		if strings.HasSuffix(h, suffix) {
+			return true
+		}
+	}
+	return h == "localhost" || h == "example.com" || h == "example.net" || h == "example.org"
+}
+
 // skipExt are files whose bytes are not worth scanning as text. Binaries are
 // built artefacts; a credential reaching one came from a source file, and that
 // source file is what this test is looking for.
@@ -70,6 +96,18 @@ func TestNoCredentialsInTrackedFiles(t *testing.T) {
 			continue // a built artefact that slipped past skipExt
 		}
 		scanned++
+
+		for _, m := range proxyCredential.FindAllSubmatchIndex(b, -1) {
+			host := string(b[m[2]:m[3]])
+			if isFixtureHost(host) {
+				continue
+			}
+			line := 1 + strings.Count(string(b[:m[0]]), "\n")
+			t.Errorf("%s:%d contains what looks like a live proxy credential on %s.\n"+
+				"  Fixtures must use a reserved host (.invalid, .example, .test) so the\n"+
+				"  string grants nothing. This file is TRACKED and a commit is permanent.",
+				rel, line, host)
+		}
 
 		for _, p := range credentialPatterns {
 			if loc := p.re.FindIndex(b); loc != nil {

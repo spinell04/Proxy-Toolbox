@@ -30,6 +30,13 @@ for file in $(git diff --cached --name-only --diff-filter=ACM); do
 			exit 1
 		fi
 	done || found=1
+
+	if git show ":$file" 2>/dev/null \
+		| grep -vE '\.(invalid|example|test|localhost)[:/ ]|example\.(com|net|org)' \
+		| grep -nEq "$proxy_re"; then
+		echo "BLOCKED: $file contains what looks like a live proxy credential." >&2
+		found=1
+	fi
 done
 
 if [ "$found" = 1 ]; then

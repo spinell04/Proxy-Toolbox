@@ -458,8 +458,12 @@ func TestBuildSessionRecoveredEmbedShape(t *testing.T) {
 // the middle of the username, so any elision makes two of them identical in
 // the one tool whose job is naming which proxy rotated.
 func TestSessionProxyCol_FitsTheLongestID(t *testing.T) {
-	const a = "Quantum-dmgck8gz:TuyUdS9o4H5oWwfh0wTq_country-DE_session-935814_lifetime-60@schro.quantumproxies.net:1111"
-	const b = "Quantum-dmgck8gz:TuyUdS9o4H5oWwfh0wTq_country-DE_session-374010_lifetime-60@schro.quantumproxies.net:1111"
+	// Synthetic credentials on a .invalid host, the same length as a real
+	// gateway id and differing only in the session id in the middle — that
+	// shape is the whole point of the test. Never paste a real credential
+	// here: a test file is committed, and a commit is permanent.
+	const a = "gwuser-aaaaaaaa:wwwwwwwwwwwwwwwwwwwwwwwww_country-DE_session-935814_lifetime-60@pool.example.invalid:1111"
+	const b = "gwuser-aaaaaaaa:wwwwwwwwwwwwwwwwwwwwwwwww_country-DE_session-374010_lifetime-60@pool.example.invalid:1111"
 
 	got := sessionProxyCol([]string{a, b})
 	if got < len(a) {
