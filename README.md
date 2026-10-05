@@ -76,6 +76,9 @@ All tools auto-detect the input format. Supported formats:
 | `user:pass:host:port` | `admin:secret:1.2.3.4:8080` |
 | `user:pass@host:port` | `admin:secret@1.2.3.4:8080` |
 | `http://user:pass@host:port` | `http://admin:secret@1.2.3.4:8080` |
+| direct line (no proxy) | `direct`, `localhost`, `localhost:localhost:localhost:localhost` |
+
+A **direct line** means "make this request with no proxy", measured under the same target, timeout and worker pool as the proxies around it. A line naming a port — `localhost:8080:user:pass` — is still a real proxy on loopback. Full details in [proxy formats → direct lines](docs/getting-started/proxy-formats.md#direct-lines-no-proxy).
 
 The **Proxy Parser** tool can convert between any of these formats, plus strip auth to `host:port`.
 

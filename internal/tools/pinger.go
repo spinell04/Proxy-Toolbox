@@ -26,10 +26,47 @@ type pingResult struct {
 	Err     error
 }
 
+// rawPingPort is what the Ping Test's bare-host mode means by "reach this
+// host": a TCP connect to its HTTP port.
+const rawPingPort = "80"
+
+// rawPingTarget composes the address pingRawTCP dials.
+//
+// Split out as a pure function so the port can be asserted without a network.
+// Reading it back off a dial error does not work: an unresolvable name fails at
+// the DNS lookup before the port is used, and "127.0.0.1:8080" contains
+// "127.0.0.1:80" as a substring, so a Contains check silently accepts the wrong
+// port. That mutant survived until this function existed.
+func rawPingTarget(host string) string { return host + ":" + rawPingPort }
+
+// pingRawTCP measures a TCP reach to host's HTTP port.
+//
+// A thin wrapper over pingRawTCPTo, which takes a full address so a test can
+// point it at a listener on an ephemeral port rather than port 80 of a real
+// machine.
 func pingRawTCP(index int, p proxy.Proxy, host string) pingResult {
+	return pingRawTCPTo(index, p, rawPingTarget(host))
+}
+
+func pingRawTCPTo(index int, p proxy.Proxy, target string) pingResult {
 	id := p.ID()
+
+	// A direct line has no proxy to CONNECT through, so this is a plain TCP
+	// connect to the target. It measures one hop where the proxied path below
+	// measures two — which is the comparison a baseline is for, not a flaw.
+	if p.Direct {
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", target, 20*time.Second)
+		if err != nil {
+			// Returned bare rather than wrapped as "proxy connect": there is no
+			// proxy here, and naming one would misattribute the failure.
+			return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Err: err}
+		}
+		conn.Close()
+		return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Status: 0}
+	}
+
 	proxyAddr := net.JoinHostPort(p.Host, p.Port)
-	target := host + ":80"
 
 	start := time.Now()
 	conn, err := net.DialTimeout("tcp", proxyAddr, 20*time.Second)
@@ -61,13 +98,28 @@ func pingRawTCP(index int, p proxy.Proxy, host string) pingResult {
 
 func pingHTTP(index int, p proxy.Proxy, target string) pingResult {
 	id := p.ID()
-	parsed, err := url.Parse(p.URL())
-	if err != nil {
-		return pingResult{Index: index, ProxyID: id, Err: fmt.Errorf("bad proxy URL: %w", err)}
+
+	// Proxy is left nil for a direct line, which is what makes the request go
+	// out from this machine.
+	//
+	// Deliberately not http.ProxyFromEnvironment: that would route through a
+	// corporate HTTP_PROXY where one is set, and a "direct" baseline measured
+	// through somebody's proxy is a lie the user has no way to spot.
+	//
+	// The parse lives inside the branch because url.Parse("") returns no error
+	// — it yields an empty *url.URL that http.ProxyURL would hand back as a
+	// proxy with no host, so the error check below cannot catch a direct line.
+	transport := &http.Transport{}
+	if !p.Direct {
+		parsed, err := url.Parse(p.URL())
+		if err != nil {
+			return pingResult{Index: index, ProxyID: id, Err: fmt.Errorf("bad proxy URL: %w", err)}
+		}
+		transport.Proxy = http.ProxyURL(parsed)
 	}
 
 	client := &http.Client{
-		Transport: &http.Transport{Proxy: http.ProxyURL(parsed)},
+		Transport: transport,
 		Timeout:   20 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse

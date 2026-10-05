@@ -22,7 +22,7 @@ import (
 )
 
 type proxyStats struct {
-	Host          string
+	Proxy         string
 	TotalChecks   int
 	Failures      int
 	TotalLatency  time.Duration
@@ -101,7 +101,7 @@ func buildDownEmbed(p proxy.Proxy, target string, err error, consecutive, cycle 
 		Color:     colorDown,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Fields: []discordEmbedField{
-			{Name: "Proxy", Value: fmt.Sprintf("`%s:%s`", p.Host, p.Port), Inline: true},
+			{Name: "Proxy", Value: fmt.Sprintf("`%s`", p.Addr()), Inline: true},
 			{Name: "Target", Value: fmt.Sprintf("`%s`", target), Inline: true},
 			{Name: "Consecutive Failures", Value: strconv.Itoa(consecutive), Inline: true},
 			{Name: "Cycle", Value: strconv.Itoa(cycle), Inline: true},
@@ -116,7 +116,7 @@ func buildUpEmbed(p proxy.Proxy, target string, downtime time.Duration, cycle in
 		Color:     colorUp,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Fields: []discordEmbedField{
-			{Name: "Proxy", Value: fmt.Sprintf("`%s:%s`", p.Host, p.Port), Inline: true},
+			{Name: "Proxy", Value: fmt.Sprintf("`%s`", p.Addr()), Inline: true},
 			{Name: "Target", Value: fmt.Sprintf("`%s`", target), Inline: true},
 			{Name: "Downtime", Value: downtime.Round(time.Second).String(), Inline: true},
 			{Name: "Cycle", Value: strconv.Itoa(cycle), Inline: true},
@@ -165,15 +165,22 @@ func printMonitorStats(stats []proxyStats, startTime time.Time, cycles int) {
 	fmt.Printf("\n  Monitoring ran for: %s  |  Cycles: %d  |  Total checks: %d\n\n",
 		elapsed, cycles, totalChecks)
 
-	fmt.Printf("  %-4s  %-24s  %-7s  %-6s  %-9s  %-12s  %s\n",
-		"#", "Host", "Checks", "Fails", "Success%", "Avg Latency", "Max Streak")
-	fmt.Printf("  %s\n", strings.Repeat("-", 71))
+	// Sized to the widest proxy rather than truncated, for the reason the
+	// session monitor gives: gateway pools differ only in the session id buried
+	// in the username, and eliding the middle makes two proxies render
+	// identically in the one column that says which proxy this row is about.
+	ids := make([]string, len(stats))
+	for i, s := range stats {
+		ids[i] = s.Proxy
+	}
+	col := widestProxyCol(ids)
+
+	fmt.Printf("  %-4s  %-*s  %-7s  %-6s  %-9s  %-12s  %s\n",
+		"#", col, "Proxy", "Checks", "Fails", "Success%", "Avg Latency", "Max Streak")
+	fmt.Printf("  %s\n", strings.Repeat("-", 61+col))
 
 	for i, s := range stats {
-		display := s.Host
-		if len(display) > 22 {
-			display = display[:19] + "..."
-		}
+		display := s.Proxy
 
 		var successPct float64
 		if s.TotalChecks > 0 {
@@ -197,8 +204,8 @@ func printMonitorStats(stats []proxyStats, startTime time.Time, cycles int) {
 			avgLatency = fmt.Sprintf("%dms", avg.Milliseconds())
 		}
 
-		fmt.Printf("  %-4d  %-24s  %-7d  %-6d  %-9s  %-12s  %d\n",
-			i+1, display, s.TotalChecks, s.Failures, pctStr, avgLatency, s.LongestStreak)
+		fmt.Printf("  %-4d  %-*s  %-7d  %-6d  %-9s  %-12s  %d\n",
+			i+1, col, display, s.TotalChecks, s.Failures, pctStr, avgLatency, s.LongestStreak)
 	}
 
 	// Failure timeline
@@ -268,6 +275,24 @@ func printMonitorStats(stats []proxyStats, startTime time.Time, cycles int) {
 	}
 
 	fmt.Println(strings.Repeat("=", 75))
+}
+
+// feedProxy is the proxy as the live feed and the ctrl+C table print it.
+//
+// A function rather than an inline p.ID() so the rule is testable: this column
+// used to cut at 22 characters with a trailing "...", and that elision made two
+// proxies from one gateway pool render identically, since they differ only in
+// the session id buried in the username. Reinstating a truncation here is the
+// regression TestFeedProxy_IsNeverTruncated exists to catch.
+func feedProxy(p proxy.Proxy) string { return p.ID() }
+
+// proxyIDs is the set of ids a column must be wide enough to hold.
+func proxyIDs(proxies []proxy.Proxy) []string {
+	ids := make([]string, len(proxies))
+	for i, p := range proxies {
+		ids[i] = feedProxy(p)
+	}
+	return ids
 }
 
 func RunMonitor() {
@@ -363,9 +388,13 @@ func RunMonitor() {
 	fmt.Printf("Log file : %s\n", logPath)
 	fmt.Printf("\nPress Ctrl+C to stop and show statistics.\n\n")
 
-	fmt.Printf("%-12s  %-4s  %-4s  %-24s  %-10s  %s\n",
-		"Time", "Cyc", "#", "Host", "Latency", "Status")
-	fmt.Println(strings.Repeat("-", 70))
+	// Same rule as the ctrl+C table and the session monitor: the column is as
+	// wide as the widest proxy in the file, and nothing is elided.
+	feedCol := widestProxyCol(proxyIDs(proxies))
+
+	fmt.Printf("%-12s  %-4s  %-4s  %-*s  %-10s  %s\n",
+		"Time", "Cyc", "#", feedCol, "Proxy", "Latency", "Status")
+	fmt.Println(strings.Repeat("-", 46+feedCol))
 
 	// Signal handling
 	ctx, cancel := context.WithCancel(context.Background())
@@ -379,7 +408,7 @@ func RunMonitor() {
 	// Init stats
 	stats := make([]proxyStats, len(proxies))
 	for i, p := range proxies {
-		stats[i].Host = fmt.Sprintf("%s:%s", p.Host, p.Port)
+		stats[i].Proxy = p.ID()
 	}
 
 	var webhookWG sync.WaitGroup
@@ -400,10 +429,7 @@ func RunMonitor() {
 			now := time.Now()
 			ts := now.Format("15:04:05")
 
-			display := p.Host
-			if len(display) > 22 {
-				display = display[:19] + "..."
-			}
+			display := feedProxy(p)
 
 			if result.Err != nil {
 				stats[i].Failures++
@@ -416,18 +442,18 @@ func RunMonitor() {
 
 				action := evaluateAlert(&fleet, false, cfg.DiscordDownThreshold, cfg.DiscordUpThreshold, now)
 
-				fmt.Printf("%s  %-4s  %-4s  %-24s  %-10s  %s\n",
+				fmt.Printf("%s  %-4s  %-4s  %-*s  %-10s  %s\n",
 					ts,
 					fmt.Sprintf("C%d", cycle),
 					fmt.Sprintf("#%d", i+1),
-					display,
+					feedCol, display,
 					"-",
 					util.Red("FAIL  "+util.ShortenErr(result.Err)))
 
 				// Log to file
 				if logFile != nil {
-					fmt.Fprintf(logFile, "%s  FAIL  %s:%s  -> %s  %s\n",
-						now.Format("2006-01-02 15:04:05"), p.Host, p.Port, target, result.Err.Error())
+					fmt.Fprintf(logFile, "%s  FAIL  %s  -> %s  %s\n",
+						now.Format("2006-01-02 15:04:05"), p.Addr(), target, result.Err.Error())
 				}
 
 				if action == alertDown {
@@ -452,11 +478,11 @@ func RunMonitor() {
 					status = fmt.Sprintf("HTTP %d", result.Status)
 				}
 
-				fmt.Printf("%s  %-4s  %-4s  %-24s  %-10s  %s\n",
+				fmt.Printf("%s  %-4s  %-4s  %-*s  %-10s  %s\n",
 					ts,
 					fmt.Sprintf("C%d", cycle),
 					fmt.Sprintf("#%d", i+1),
-					display,
+					feedCol, display,
 					latStr,
 					util.Green(status))
 

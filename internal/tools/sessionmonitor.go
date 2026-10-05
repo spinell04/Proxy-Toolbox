@@ -42,7 +42,7 @@ func printSessionStats(stats []sessionStats, mode IPMode, startTime time.Time, c
 	for i, s := range stats {
 		ids[i] = s.ProxyID
 	}
-	proxyCol := sessionProxyCol(ids)
+	proxyCol := widestProxyCol(ids)
 	// Named statsWidth, not tableWidth: a local of that name reads fine but
 	// every use *above* its declaration silently resolves to the package
 	// constant instead, which is how the opening and closing rules of this
@@ -103,7 +103,7 @@ func printSessionStats(stats []sessionStats, mode IPMode, startTime time.Time, c
 // middle-elision removes — two proxies from one pool would render identically,
 // in the one tool whose whole job is telling you which proxy did something.
 // A wide table is the smaller cost.
-func sessionProxyCol(ids []string) int {
+func widestProxyCol(ids []string) int {
 	w := len("Proxy")
 	for _, id := range ids {
 		if n := utf8.RuneCountInString(id); n > w {
@@ -201,7 +201,7 @@ func RunSessionMonitor() {
 	for i, p := range proxies {
 		liveIDs[i] = p.ID()
 	}
-	proxyCol := sessionProxyCol(liveIDs)
+	proxyCol := widestProxyCol(liveIDs)
 	liveWidth := sessionFixedCols + proxyCol + ipColsWidth(mode)
 	fmt.Printf("%-8s  %-4s  %-4s  %-*s  %s  %-8s  %s\n",
 		"Time", "Cyc", "#", proxyCol, "Proxy", ipColsHeader(mode), "Latency", "Status")

@@ -41,6 +41,16 @@ The target's bot protection (Ticketmaster, or FC Bayern's shop) flagged the prox
 - Region mismatch — e.g. using US proxies against `ticketmaster.de` triggers geoblocks (the Bayern Tester always hits the German shop, so non-EU proxies fare worse)
 - Datacenter IPs — these targets aggressively block datacenter ranges; residential or mobile proxies perform better
 
+## Direct lines
+
+A direct line means "make this request with no proxy". The three spellings and what each tool measures for one are in [Proxy Formats → direct lines](getting-started/proxy-formats.md#direct-lines-no-proxy).
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| A bare `localhost` line was measured as a baseline, but you meant the local proxy you have running | `localhost` with no port is one of the three direct spellings. With no port there is nothing to distinguish "my local proxy" from "no proxy", so the line is taken as a baseline | Give it the port: `localhost:3128:user:pass`, or `localhost:3128` in a format with `@`. Any line naming a port is read as a real proxy on loopback |
+| A direct row shows a blank, a `:` or some other odd value in a table, CSV, embed or log | Should not happen. A direct line labels itself with its own line, lowercased, in every surface that shows a proxy | [Open an issue](https://github.com/spinell04/Proxy-Toolbox/issues) naming the tool, the surface and the exact line you used |
+| One line widened the whole Session Monitor proxy column | `localhost:localhost:localhost:localhost` is 39 characters, and the Session Monitor [never truncates that column](tools/session-monitor.md#the-proxy-column-is-never-truncated) — it sizes it to the widest entry in the file | Nothing is wrong. `direct` and `localhost` are 6 and 9 characters and mean the same thing |
+
 ## Monitor → Downtime monitor never sends Discord alerts
 
 If the live feed shows failures but no Discord message arrives:

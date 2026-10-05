@@ -2,12 +2,14 @@ package tools
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"proxytoolbox/internal/config"
+	"proxytoolbox/internal/proxy"
 )
 
 func TestParseIPMode(t *testing.T) {
@@ -286,5 +288,72 @@ func TestLoadBannerDoublesInBothMode(t *testing.T) {
 		if got != want {
 			t.Errorf("%s load = %.0f lookups/min, want %.0f", mode, got, want)
 		}
+	}
+}
+
+// TestIPClient_DirectDoesNotUseAProxy. Same technique as the ping tests: a
+// proxied request arrives with an absolute request URI, a direct one with a
+// path. Asserting on what the server sees rather than on the transport's
+// fields keeps the test honest if the construction is ever refactored.
+func TestIPClient_DirectDoesNotUseAProxy(t *testing.T) {
+	var gotAbsoluteURI bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAbsoluteURI = strings.HasPrefix(r.RequestURI, "http://")
+		w.Write([]byte("203.0.113.9"))
+	}))
+	defer srv.Close()
+
+	p, ok := proxy.ParseLine("direct")
+	if !ok || !p.Direct {
+		t.Fatal(`ParseLine("direct") did not produce a direct proxy`)
+	}
+
+	client, err := ipClient(p)
+	if err != nil {
+		t.Fatalf("ipClient: %v", err)
+	}
+	resp, err := client.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	resp.Body.Close()
+
+	if gotAbsoluteURI {
+		t.Error("the lookup arrived in proxy form; a direct check must not set a proxy")
+	}
+}
+
+// TestIPClient_ProxiedStillUsesTheProxy is the regression guard: without it,
+// dropping the Proxy field entirely would satisfy the test above while silently
+// making every exit-IP lookup report the user's own address.
+func TestIPClient_ProxiedStillUsesTheProxy(t *testing.T) {
+	var gotAbsoluteURI bool
+	proxySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAbsoluteURI = strings.HasPrefix(r.RequestURI, "http://")
+		w.Write([]byte("198.51.100.4"))
+	}))
+	defer proxySrv.Close()
+
+	host, port, err := net.SplitHostPort(strings.TrimPrefix(proxySrv.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := proxy.ParseLine(host + ":" + port + ":user:pass")
+	if !ok || p.Direct {
+		t.Fatalf("ParseLine did not produce a real proxy: %+v", p)
+	}
+
+	client, err := ipClient(p)
+	if err != nil {
+		t.Fatalf("ipClient: %v", err)
+	}
+	resp, err := client.Get("http://example.invalid/")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	resp.Body.Close()
+
+	if !gotAbsoluteURI {
+		t.Error("the lookup did not arrive in proxy form; a real proxy must still be used")
 	}
 }

@@ -20,6 +20,15 @@ The mode is auto-selected based on what you type as the target:
 - **HTTP** — the proxy actually forwards a real HTTP request. You get back a status code and the response time reflects the full round-trip.
 - **HTTPS** — closest to real browsing. Tests that the proxy can tunnel TLS (via CONNECT), that the handshake completes, and that the target responds.
 
+## Direct lines
+
+A [direct line](../getting-started/proxy-formats.md#direct-lines-no-proxy) in the file is measured against the same target, timeout and worker pool as the proxies, with no proxy in the path:
+
+- In **raw TCP** mode it is one TCP connect to the target, where a proxied row is two hops — the proxy connect, then the `CONNECT` to the target. A failure on a direct row is reported bare rather than as `proxy connect:`, since there is no proxy to attribute it to.
+- In **HTTP** and **HTTPS** modes it is the request made from this machine's own connection.
+
+`HTTP_PROXY` and `HTTPS_PROXY` are not consulted for those rows, so a baseline is never silently routed through a proxy the environment set.
+
 ## Setting a default domain
 
 You can set a `domain` in [`config.txt`](../getting-started/configuration.md) to pre-fill the prompt:

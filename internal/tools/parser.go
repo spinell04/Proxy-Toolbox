@@ -32,6 +32,28 @@ var proxyFormats = []struct {
 	}},
 }
 
+// convertLines renders each proxy in the chosen output format.
+//
+// Extracted from RunParser so the direct-line guard is reachable from a test.
+// It is the whole of the conversion, and RunParser's remaining body is file
+// selection and a menu — neither of which a test can drive.
+func convertLines(proxies []proxy.Proxy, format func(proxy.Proxy) string) []string {
+	var lines []string
+	for _, p := range proxies {
+		// A direct line is not an address and has nothing to reformat, so it
+		// passes through verbatim. Running it through a formatter would emit
+		// ":::" from four empty fields — or ":@:" from the @ forms — and
+		// silently delete the user's baseline the first time they converted a
+		// file.
+		if p.Direct {
+			lines = append(lines, p.Raw)
+			continue
+		}
+		lines = append(lines, format(p))
+	}
+	return lines
+}
+
 func RunParser() {
 	filePath, err := proxy.SelectFile()
 	if err != nil {
@@ -72,10 +94,7 @@ func RunParser() {
 	}
 
 	chosen := proxyFormats[formatIdx]
-	var lines []string
-	for _, p := range proxies {
-		lines = append(lines, chosen.Format(p))
-	}
+	lines := convertLines(proxies, chosen.Format)
 
 	output := strings.Join(lines, "\n") + "\n"
 	if err := os.WriteFile(filePath, []byte(output), 0644); err != nil {

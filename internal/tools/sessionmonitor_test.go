@@ -494,7 +494,7 @@ func TestSessionProxyCol_FitsTheLongestID(t *testing.T) {
 	const a = "gwuser-aaaaaaaa:wwwwwwwwwwwwwwwwwwwwwwwww_country-DE_session-935814_lifetime-60@pool.example.invalid:1111"
 	const b = "gwuser-aaaaaaaa:wwwwwwwwwwwwwwwwwwwwwwwww_country-DE_session-374010_lifetime-60@pool.example.invalid:1111"
 
-	got := sessionProxyCol([]string{a, b})
+	got := widestProxyCol([]string{a, b})
 	if got < len(a) {
 		t.Errorf("sessionProxyCol = %d, want at least %d so the id is never cut", got, len(a))
 	}
@@ -506,11 +506,11 @@ func TestSessionProxyCol_FitsTheLongestID(t *testing.T) {
 }
 
 func TestSessionProxyCol_NeverNarrowerThanItsHeader(t *testing.T) {
-	if got := sessionProxyCol(nil); got < len("Proxy") {
-		t.Errorf("sessionProxyCol(nil) = %d, want at least %d", got, len("Proxy"))
+	if got := widestProxyCol(nil); got < len("Proxy") {
+		t.Errorf("widestProxyCol(nil) = %d, want at least %d", got, len("Proxy"))
 	}
-	if got := sessionProxyCol([]string{"ab"}); got < len("Proxy") {
-		t.Errorf("sessionProxyCol(short) = %d, want the header width %d", got, len("Proxy"))
+	if got := widestProxyCol([]string{"ab"}); got < len("Proxy") {
+		t.Errorf("widestProxyCol(short) = %d, want the header width %d", got, len("Proxy"))
 	}
 }
 
@@ -518,7 +518,7 @@ func TestSessionProxyCol_NeverNarrowerThanItsHeader(t *testing.T) {
 // renders short, which breaks the column the table is aligned on.
 func TestSessionProxyCol_CountsRunesNotBytes(t *testing.T) {
 	const id = "üüüüüüüüüü" // 10 runes, 20 bytes
-	if got := sessionProxyCol([]string{id}); got != 10 {
+	if got := widestProxyCol([]string{id}); got != 10 {
 		t.Errorf("sessionProxyCol = %d, want 10 runes (not %d bytes)", got, len(id))
 	}
 }

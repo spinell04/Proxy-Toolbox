@@ -32,16 +32,35 @@ type ipResult struct {
 	Elapsed time.Duration
 }
 
+// ipClient builds the client a lookup runs through.
+//
+// Proxy is left nil for a direct line, which is what sends the request out from
+// this machine and makes the exit IP the user's own.
+//
+// Deliberately not http.ProxyFromEnvironment: it would route through a
+// corporate HTTP_PROXY where one is set, and an exit IP measured through
+// somebody else's proxy is the one answer this tool must never give silently.
+//
+// The parse sits inside the branch because url.Parse("") returns no error — it
+// yields an empty *url.URL that http.ProxyURL would hand back as a proxy with
+// no host, so the error check cannot catch a direct line on its own.
+func ipClient(p proxy.Proxy) (*http.Client, error) {
+	transport := &http.Transport{}
+	if !p.Direct {
+		parsed, err := url.Parse(p.URL())
+		if err != nil {
+			return nil, err
+		}
+		transport.Proxy = http.ProxyURL(parsed)
+	}
+	return &http.Client{Transport: transport, Timeout: 20 * time.Second}, nil
+}
+
 func checkIP(index int, p proxy.Proxy, mode IPMode) ipResult {
 	id := p.ID()
-	parsed, err := url.Parse(p.URL())
+	client, err := ipClient(p)
 	if err != nil {
 		return ipResult{Index: index, ProxyID: id, Err: err}
-	}
-
-	client := &http.Client{
-		Transport: &http.Transport{Proxy: http.ProxyURL(parsed)},
-		Timeout:   20 * time.Second,
 	}
 
 	start := time.Now()

@@ -27,6 +27,8 @@ You don't need to tell the tool what format your file is in — it figures it ou
 
 So you can convert a file from `http://user:pass@host:port` to `host:port:user:pass` in one pass with no prep work.
 
+A [direct line](../getting-started/proxy-formats.md#direct-lines-no-proxy) passes through every conversion verbatim — it has no address to reformat.
+
 ## ⚠️ In-place conversion
 
 The tool **overwrites the original file**. There's no automatic backup. If you want to keep the original format, copy the file first:

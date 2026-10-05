@@ -2,6 +2,7 @@ package tools
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,5 +183,96 @@ func TestTruncate(t *testing.T) {
 	}
 	if got := truncate("abcdefghij", 5); got != "abcde..." {
 		t.Errorf("long truncate: %q", got)
+	}
+}
+
+// TestWidestProxyCol_NeverTruncates pins the rule both monitors now share: the
+// proxy column is as wide as the widest entry, and nothing is elided.
+//
+// It exists because the Downtime Monitor used to cut the column at 22
+// characters with "...". Gateway pools differ only in the session id buried in
+// the username, so middle-elision made two different proxies render
+// identically — in the one column whose job is saying which proxy a row is
+// about. A direct line's longest spelling is 39 characters and was elided too.
+func TestWidestProxyCol_NeverTruncates(t *testing.T) {
+	tests := []struct {
+		name string
+		ids  []string
+		want int
+	}{
+		{"no proxies falls back to the header", nil, len("Proxy")},
+		{"short ids do not shrink below the header", []string{"direct"}, len("direct")},
+		{"widest wins", []string{"direct", "u:p@gw.example.com:9000"}, len("u:p@gw.example.com:9000")},
+		{
+			"the longest direct spelling is not elided",
+			[]string{"localhost:localhost:localhost:localhost"},
+			39,
+		},
+		{
+			"a gateway credential is not elided",
+			[]string{"Quantum-abcdefgh:TuyUdS9o4H5oWwfh0wTq@gw.example.invalid:1111"},
+			len("Quantum-abcdefgh:TuyUdS9o4H5oWwfh0wTq@gw.example.invalid:1111"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := widestProxyCol(tt.ids); got != tt.want {
+				t.Errorf("widestProxyCol(%v) = %d, want %d", tt.ids, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestProxyIDs_CarriesTheWholeProxy: the monitor's columns are sized from these,
+// so anything shortened here would reintroduce elision by the back door.
+func TestProxyIDs_CarriesTheWholeProxy(t *testing.T) {
+	lines := []string{
+		"direct",
+		"localhost:localhost:localhost:localhost",
+		"gw.example.com:9000:user:pass",
+	}
+	var proxies []proxy.Proxy
+	for _, l := range lines {
+		p, ok := proxy.ParseLine(l)
+		if !ok {
+			t.Fatalf("ParseLine(%q) failed", l)
+		}
+		proxies = append(proxies, p)
+	}
+
+	got := proxyIDs(proxies)
+	for i, id := range got {
+		if id != proxies[i].ID() {
+			t.Errorf("proxyIDs()[%d] = %q, want the full ID %q", i, id, proxies[i].ID())
+		}
+		if strings.Contains(id, "...") {
+			t.Errorf("proxyIDs()[%d] = %q, which is elided", i, id)
+		}
+	}
+}
+
+// TestFeedProxy_IsNeverTruncated pins what the live feed and the ctrl+C table
+// print. The column used to cut at 22 characters with "..."; this is what makes
+// putting that back a test failure rather than a silent regression.
+func TestFeedProxy_IsNeverTruncated(t *testing.T) {
+	for _, line := range []string{
+		"direct",
+		"localhost:localhost:localhost:localhost",
+		"Quantum-abcdefgh:TuyUdS9o4H5oWwfh0wTq@gw.example.invalid:1111",
+	} {
+		t.Run(line, func(t *testing.T) {
+			p, ok := proxy.ParseLine(line)
+			if !ok {
+				t.Fatalf("ParseLine(%q) failed", line)
+			}
+			got := feedProxy(p)
+			if got != p.ID() {
+				t.Errorf("feedProxy() = %q, want the full ID %q", got, p.ID())
+			}
+			if strings.Contains(got, "...") {
+				t.Errorf("feedProxy() = %q, which is elided", got)
+			}
+		})
 	}
 }

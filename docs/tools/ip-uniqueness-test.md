@@ -53,6 +53,12 @@ endpoint is tried — none of them is recorded as an exit IP.
 Tests run in parallel using the `workers` value from
 [`config.txt`](../getting-started/configuration.md).
 
+### Direct lines
+
+A [direct line](../getting-started/proxy-formats.md#direct-lines-no-proxy) looks up this machine's own public exit IP, through the same endpoint sets and the same IP mode as every proxy in the file. `HTTP_PROXY` and `HTTPS_PROXY` are not consulted, so the address reported for that row is the one this machine exits from.
+
+It is an ordinary row to the duplicate detection, which is the second thing a direct line is for here: **a proxy whose exit IP matches the direct line's is not proxying.** It appears in the `REPEATED` marker and the **Repeated IPs** section with the direct line's number alongside it, the same as any two proxies sharing an address.
+
 ### Repeated lines are spaced one second apart
 
 If the same proxy string appears more than once in the file, its copies are **not** checked in parallel. Each repeat waits one second after the previous one finishes, and the tool prints how many checks that affects before the run starts.
