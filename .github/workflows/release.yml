@@ -111,14 +111,38 @@ jobs:
           build darwin  arm64 proxytoolbox-mac-AppleSiliconCPU
           build darwin  amd64 proxytoolbox-macOS-IntelCPU
 
+          # The one-time Setup installer — cmd/setup, a second main package in
+          # this module. A named function rather than a flag on build(): the
+          # only difference is the package path, and a boolean-ish third
+          # argument would read worse than two names. $ldflags is reused
+          # unchanged: -X main.version applies to whichever main package is
+          # being linked, and cmd/setup declares its own package-level
+          # `version`, so the same string stamps both binaries.
+          build_setup() {
+            GOOS=$1 GOARCH=$2 go build $flags -ldflags "$ldflags" -o "dist/$3" ./cmd/setup
+            echo "built dist/$3"
+          }
+
+          build_setup windows amd64 Setup-ProxyToolbox.exe
+          build_setup darwin  arm64 Setup-ProxyToolbox-mac-AppleSiliconCPU
+          build_setup darwin  amd64 Setup-ProxyToolbox-macOS-IntelCPU
+
       # The client refuses to install anything it cannot verify against this
       # file, so a release without it is a release nobody can install.
+      #
+      # The installers are listed too even though nothing verifies them
+      # automatically: it lets a user check a downloaded Setup by hand. The
+      # client looks its own asset up by name, so entries it does not need are
+      # simply ignored.
       - name: Checksums
         working-directory: dist
         run: |
           sha256sum proxytoolbox.exe \
                     proxytoolbox-mac-AppleSiliconCPU \
-                    proxytoolbox-macOS-IntelCPU > SHA256SUMS
+                    proxytoolbox-macOS-IntelCPU \
+                    Setup-ProxyToolbox.exe \
+                    Setup-ProxyToolbox-mac-AppleSiliconCPU \
+                    Setup-ProxyToolbox-macOS-IntelCPU > SHA256SUMS
           cat SHA256SUMS
 
       - name: Publish
@@ -134,4 +158,7 @@ jobs:
             dist/proxytoolbox.exe \
             dist/proxytoolbox-mac-AppleSiliconCPU \
             dist/proxytoolbox-macOS-IntelCPU \
+            dist/Setup-ProxyToolbox.exe \
+            dist/Setup-ProxyToolbox-mac-AppleSiliconCPU \
+            dist/Setup-ProxyToolbox-macOS-IntelCPU \
             dist/SHA256SUMS

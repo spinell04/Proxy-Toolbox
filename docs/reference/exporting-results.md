@@ -83,7 +83,7 @@ The six rows at the top describe the run that produced the file:
 | `Workers` | The concurrency the run used |
 | `IP mode` | Which address families the exit-IP lookups asked for: `ipv4`, `ipv6` or `both`. Empty for every tool but the IP Uniqueness Test, which is the only one that looks up an exit IP |
 
-These rows are what make an export self-describing, and they are what [Compare Results](../tools/compare-results.md) uses to tell a genuine change in proxy quality from a changed target, a different input file, a bumped worker count, or a run that measured a different address family.
+These rows are what make an export self-describing, and they are what [Compare Results](../tools/compare-results.md) uses to tell a change in the proxies from a changed target, a different input file, a bumped worker count, or a run that measured a different address family.
 
 CSVs exported before these rows existed still open and still parse — they just can't be placed on a timeline, and show `unknown` where the metadata would be. The same holds one row at a time: an export made before `ip_mode` existed has no `IP mode` row, and that is read as **unknown**, never as "the same as the others".
 

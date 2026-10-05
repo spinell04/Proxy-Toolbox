@@ -124,8 +124,7 @@ So a config change is two edits, always:
 **Skipping the second is invisible in testing and broken in the field.** Your
 own `config.txt` already exists and is never rewritten, so a missing template
 line changes nothing locally — but every new install gets a config with no
-line for that setting, and most users never read the docs to find out it
-exists.
+line for that setting, so it is a setting nobody can discover.
 
 Three tests make this mechanical rather than a matter of memory:
 

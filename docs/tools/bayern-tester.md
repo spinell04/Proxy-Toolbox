@@ -10,11 +10,11 @@ Both send a full page request through every proxy, which is what separates them 
 
 ## What it does
 
-Sends a full, browser-like TLS request to the FC Bayern ticket shop (`https://fcbayern.com/de/tickets`) through each proxy. It's the same engine as the [TM Request Tester](tm-request-tester.md), but pointed at a single fixed target instead of a region menu — useful when you specifically need proxies that can reach the Bayern queue.
+Sends a full, browser-like TLS request to the FC Bayern ticket shop (`https://fcbayern.com/de/tickets`) through each proxy. It's the same engine as the [TM Request Tester](tm-request-tester.md), pointed at a single fixed target instead of a region menu.
 
 ## Why a dedicated tool
 
-FC Bayern's ticket shop sits behind the same kind of bot protection as Ticketmaster. A generic HTTPS request is trivially fingerprinted as "not a real browser." This tool uses [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client) to replicate a **Chrome 133** TLS handshake (matching User-Agent and header order), so the results reflect how a proxy will actually behave against the live shop.
+FC Bayern's ticket shop sits behind the same kind of bot protection as Ticketmaster. A generic HTTPS request is trivially fingerprinted as "not a real browser." This tool uses [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client) to replicate a **Chrome 133** TLS handshake, with a matching User-Agent and header order. The status it records is the one the live shop returned to that request.
 
 The target is hard-coded:
 
@@ -59,9 +59,9 @@ There's no region prompt — just pick your proxy file and go.
 
 | Status | Meaning |
 |--------|---------|
-| **`200 OK`** (green) | Proxy completed the TLS request and the shop served the page. This is what you want. |
-| **`403 BLOCKED`** (yellow) | The request went through, but bot protection flagged the proxy. Compromised for the queue/purchase flow. |
-| **`ERROR`** (red) | Network-level failure: timeout, connection refused, TLS handshake failure. The proxy is dead or doesn't tunnel HTTPS properly. |
+| **`200 OK`** (green) | The proxy completed the TLS request and the shop served the page. |
+| **`403 BLOCKED`** (yellow) | The connection and TLS handshake succeeded, but the shop returned 403 rather than the page. |
+| **`ERROR`** (red) | No response was recorded — timeout, connection refused, TLS handshake failure. The error text is reported as received; a single failed request does not separate an unreachable proxy from one that does not tunnel HTTPS, or from a transient fault. |
 
 ### Stats explained
 

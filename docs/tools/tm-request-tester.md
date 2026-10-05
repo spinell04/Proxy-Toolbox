@@ -10,11 +10,11 @@ Both send a full page request through every proxy, which is what separates them 
 
 ## What it does
 
-Sends a full, browser-like TLS request to a Ticketmaster region through each proxy. Unlike the [Ping Test](ping-test.md), this uses a realistic Chrome TLS fingerprint — so if a proxy is going to get blocked by Ticketmaster's bot protection, you'll see it here.
+Sends a full, browser-like TLS request to a Ticketmaster region through each proxy and records the status code returned. Unlike the [Ping Test](ping-test.md), it presents a Chrome TLS fingerprint, so what comes back is the response to a Chrome-shaped request rather than to a generic client.
 
 ## Why it's different from Ping Test
 
-A generic HTTPS request is easy for Ticketmaster (and Cloudflare, Akamai, etc.) to fingerprint as "not a real browser." This tool uses [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client) to replicate Chrome's TLS handshake, along with a matching User-Agent and header order. That gets you much closer to real-browser behaviour, so the results reflect how a proxy will actually perform in practice.
+A generic HTTPS request is easy for Ticketmaster (and Cloudflare, Akamai, etc.) to fingerprint as "not a real browser." This tool uses [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client) to replicate Chrome's TLS handshake, along with a matching User-Agent and header order. The status code it records is therefore the one returned to a request shaped like Chrome's — which is a different measurement from the Ping Test's, not a prediction of any other outcome.
 
 ## Supported regions
 
@@ -60,9 +60,9 @@ Pick the region that matches where your proxies are geo-located — testing Germ
 
 | Status | Meaning |
 |--------|---------|
-| **`200 OK`** (green) | Proxy successfully completed a TLS request; Ticketmaster served the page. This is what you want. |
-| **`403 BLOCKED`** (yellow) | The request went through, but Ticketmaster's bot protection flagged the proxy. Usable for some flows, but compromised for purchases/queue. |
-| **`ERROR`** (red) | Network-level failure: timeout, connection refused, TLS handshake failure, etc. Either the proxy is dead or it doesn't support HTTPS properly. |
+| **`200 OK`** (green) | The proxy completed the TLS request and Ticketmaster served the page. |
+| **`403 BLOCKED`** (yellow) | The connection and TLS handshake succeeded, but Ticketmaster returned 403 rather than the page. |
+| **`ERROR`** (red) | No response was recorded — timeout, connection refused, TLS handshake failure. The error text is reported as received; a single failed request does not separate an unreachable proxy from one that does not tunnel HTTPS, or from a transient fault. |
 
 ### Stats explained
 

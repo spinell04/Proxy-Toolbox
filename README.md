@@ -20,14 +20,17 @@ Listed in menu order.
 
 ## Quick Start
 
-1. Download the binary for your platform from the [latest release](https://github.com/spinell04/Proxy-Toolbox/releases/latest):
-   - `proxytoolbox-mac-AppleSiliconCPU` — Apple Silicon (M1/M2/M3/M4)
-   - `proxytoolbox-macOS-IntelCPU` — Intel Macs
-   - `proxytoolbox.exe` — Windows
-2. Place your proxy files (`.txt`) in the `proxyfiles/` folder next to the binary
-3. Run the binary and navigate the menu with arrow keys
+Two routes, both from the [latest release](https://github.com/spinell04/Proxy-Toolbox/releases/latest):
 
-That is the only download you need: the binary checks for a newer release on each launch and installs it, leaving `config.txt`, `proxyfiles/` and `results/` alone. See [Auto-Update](docs/reference/auto-update.md).
+- **Setup** — download one installer (`Setup-ProxyToolbox.exe`, `Setup-ProxyToolbox-mac-AppleSiliconCPU` or `Setup-ProxyToolbox-macOS-IntelCPU`), put it in the folder you want the toolbox in, and run it. It fetches the current toolbox binary, verifies its SHA-256 and places it there.
+- **Direct download** — take the toolbox binary itself (`proxytoolbox.exe`, `proxytoolbox-mac-AppleSiliconCPU` or `proxytoolbox-macOS-IntelCPU`) and drop it in a folder.
+
+Then:
+
+1. Place your proxy files (`.txt`) in the `proxyfiles/` folder next to the binary
+2. Run the binary and navigate the menu with arrow keys
+
+Either way it is the only download you need: the binary checks for a newer release on each launch and installs it, leaving `config.txt`, `proxyfiles/` and `results/` alone. Full detail, including Gatekeeper and SmartScreen, is in [Installation](docs/getting-started/installation.md); the update mechanism is in [Auto-Update](docs/reference/auto-update.md).
 
 ## Configuration
 
@@ -122,7 +125,7 @@ The prompt suggests a name built from the tool, the proxy file you tested and th
 Save results to CSV? (Enter to skip, "." for pinger_schroeder_2026-09-19_143207.csv, or type filename):
 ```
 
-Every export opens with five metadata rows (`Tool`, `Run at`, `Proxy file`, `Target`, `Workers`) that describe the run, so **Compare Results** can tell a change in proxy quality from a change in the test itself.
+Every export opens with five metadata rows (`Tool`, `Run at`, `Proxy file`, `Target`, `Workers`) that describe the run, so **Compare Results** can tell a change in the proxies from a change in the test itself.
 
 ### Saving filtered proxies
 

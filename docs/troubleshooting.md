@@ -73,6 +73,19 @@ xattr -d com.apple.quarantine proxytoolbox-mac-AppleSiliconCPU
 
 Or open **System Settings → Privacy & Security**, scroll down to the blocked binary notice, and click **Allow Anyway**.
 
+## Setup (the installer)
+
+Every outcome ends with `Press Enter to close...`, so the message stays on screen whether the installer succeeded or not. What Setup does on each path is in [Installation](getting-started/installation.md).
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| `The toolbox is already installed in this folder.` but you wanted the newest version | The installer places a first copy and declines to touch an existing one. It checks for the file before it contacts GitHub | Open the toolbox; it updates itself on launch. Or delete the binary and run Setup again |
+| `Could not reach the release: GitHub API returned 404` | No release is published yet, or the request did not reach GitHub | Check the [releases page](https://github.com/spinell04/Proxy-Toolbox/releases/latest) and the network, then run Setup again |
+| `Install failed: checksum mismatch …` | The download did not match the digest the release's `SHA256SUMS` publishes for that file | Nothing to clean up — verification happens before placement, so nothing was written. Run Setup again |
+| macOS blocks Setup from opening | The browser tagged the download with `com.apple.quarantine` | Right-click the installer → **Open**, or `xattr -d com.apple.quarantine Setup-ProxyToolbox-mac-AppleSiliconCPU` |
+| Windows SmartScreen blocks `Setup-ProxyToolbox.exe` | It is unsigned, like every binary in these releases | **More info → Run anyway** |
+| `No Proxy Toolbox build is published for …` | Linux and Windows-on-ARM have no published asset, and the installer stops before contacting GitHub rather than installing something that cannot run | [Build from source](reference/building-from-source.md) |
+
 ## An `[update]` line at startup
 
 Every auto-update outcome is one line, and then the menu. Nothing here needs fixing — the full mechanism is in [Auto-Update](reference/auto-update.md).

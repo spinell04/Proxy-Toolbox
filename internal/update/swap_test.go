@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -245,4 +246,177 @@ func TestInstall_Succeeds(t *testing.T) {
 func sha256Of(s string) []byte {
 	sum := sha256.Sum256([]byte(s))
 	return sum[:]
+}
+
+// TestInstall_PlacesTheBinaryInAnEmptyFolder is the installer's happy path:
+// nothing is displaced, so there is no .old and no .new left behind.
+func TestInstall_PlacesTheBinaryInAnEmptyFolder(t *testing.T) {
+	dir := t.TempDir()
+	payload := []byte("a freshly installed toolbox")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/"+sumsAsset {
+			fmt.Fprintf(w, "%s  proxytoolbox\n", hex.EncodeToString(sha256Of(string(payload))))
+			return
+		}
+		w.Write(payload)
+	}))
+	defer srv.Close()
+
+	rel := Release{Tag: "v1.2.3", Assets: map[string]string{
+		"proxytoolbox": srv.URL + "/proxytoolbox",
+		sumsAsset:      srv.URL + "/" + sumsAsset,
+	}}
+
+	if err := testClient(srv.URL).Install(context.Background(), rel, "proxytoolbox", dir); err != nil {
+		t.Fatalf("Install() error: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, "proxytoolbox"))
+	if err != nil {
+		t.Fatalf("reading the installed binary: %v", err)
+	}
+	if string(got) != string(payload) {
+		t.Errorf("installed %q, want %q", got, payload)
+	}
+
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 {
+		var names []string
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("directory holds %v, want just the binary — no .new or .old", names)
+	}
+}
+
+func TestInstall_SetsTheExecutableBit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no executable bit; Go reports 0666 whatever the chmod did")
+	}
+
+	dir := t.TempDir()
+	payload := []byte("toolbox")
+
+	// Pre-create the staged path at a mode with no execute bit, which is what
+	// an interrupted earlier run leaves behind. Without this the test proves
+	// nothing: download opens with O_CREATE|O_TRUNC 0755, so on a path that
+	// does not exist yet the file is born executable and the chmod in stage
+	// could be deleted with every test still passing. O_CREATE applies its
+	// mode only when it creates the file — on an existing one the mode is
+	// untouched, and the chmod is the only thing that sets it.
+	if err := os.WriteFile(filepath.Join(dir, "proxytoolbox"+newSuffix), []byte("stale"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/"+sumsAsset {
+			fmt.Fprintf(w, "%s  proxytoolbox\n", hex.EncodeToString(sha256Of(string(payload))))
+			return
+		}
+		w.Write(payload)
+	}))
+	defer srv.Close()
+
+	rel := Release{Tag: "v1.2.3", Assets: map[string]string{
+		"proxytoolbox": srv.URL + "/proxytoolbox",
+		sumsAsset:      srv.URL + "/" + sumsAsset,
+	}}
+
+	if err := testClient(srv.URL).Install(context.Background(), rel, "proxytoolbox", dir); err != nil {
+		t.Fatalf("Install() error: %v", err)
+	}
+
+	// A toolbox the OS will not exec is worse than no toolbox: the user has a
+	// file that looks installed and does nothing.
+	info, err := os.Stat(filepath.Join(dir, "proxytoolbox"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Errorf("mode = %v, want the executable bits set", info.Mode().Perm())
+	}
+}
+
+// TestInstall_LeavesNothingBehindOnABadChecksum is the installer's equivalent
+// of the updater's most important test. The download is unattended, so a
+// corrupted or substituted file must not end up in the user's folder.
+func TestInstall_LeavesNothingBehindOnABadChecksum(t *testing.T) {
+	dir := t.TempDir()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/"+sumsAsset {
+			fmt.Fprintf(w, "%s  proxytoolbox\n", hex.EncodeToString(sha256Of("what we expected")))
+			return
+		}
+		w.Write([]byte("something else entirely"))
+	}))
+	defer srv.Close()
+
+	rel := Release{Tag: "v1.2.3", Assets: map[string]string{
+		"proxytoolbox": srv.URL + "/proxytoolbox",
+		sumsAsset:      srv.URL + "/" + sumsAsset,
+	}}
+
+	if err := testClient(srv.URL).Install(context.Background(), rel, "proxytoolbox", dir); err == nil {
+		t.Fatal("Install() succeeded with a mismatched checksum")
+	}
+
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 0 {
+		var names []string
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("directory holds %v after a failed install, want it empty", names)
+	}
+}
+
+func TestInstall_RefusesWithoutSums(t *testing.T) {
+	dir := t.TempDir()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("an unverifiable binary"))
+	}))
+	defer srv.Close()
+
+	rel := Release{Tag: "v1.2.3", Assets: map[string]string{
+		"proxytoolbox": srv.URL + "/proxytoolbox",
+	}}
+
+	if err := testClient(srv.URL).Install(context.Background(), rel, "proxytoolbox", dir); err == nil {
+		t.Fatal("Install() succeeded on a release with no SHA256SUMS")
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Errorf("directory is not empty after refusing to install")
+	}
+}
+
+func TestInstall_FailsOnAnUnwritableDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root; mode 0o500 would not block a write")
+	}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	payload := []byte("toolbox")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/"+sumsAsset {
+			fmt.Fprintf(w, "%s  proxytoolbox\n", hex.EncodeToString(sha256Of(string(payload))))
+			return
+		}
+		w.Write(payload)
+	}))
+	defer srv.Close()
+
+	rel := Release{Tag: "v1.2.3", Assets: map[string]string{
+		"proxytoolbox": srv.URL + "/proxytoolbox",
+		sumsAsset:      srv.URL + "/" + sumsAsset,
+	}}
+
+	if err := testClient(srv.URL).Install(context.Background(), rel, "proxytoolbox", dir); err == nil {
+		t.Fatal("Install() succeeded into a read-only directory")
+	}
 }

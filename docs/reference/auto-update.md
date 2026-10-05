@@ -1,8 +1,16 @@
 # Auto-Update
 
-The toolbox is a single bare binary dropped into a folder. There is no installer, no package manager and nothing else on the machine that could keep it current, so it keeps itself current: on every launch it checks GitHub for a newer release and installs it.
+The toolbox is a single bare binary dropped into a folder, by hand or by Setup. There is no package manager and nothing resident on the machine that could keep it current, so it keeps itself current: on every launch it checks GitHub for a newer release and installs it.
 
 That is unattended binary replacement, which sets the standard the whole thing is written to — **a failed update must leave the working binary in place, and must never stop the toolbox from starting.**
+
+## Setup and auto-update
+
+Setup puts the first copy in the folder; everything on this page is what happens afterwards. The two do not overlap: the installer exits once the binary is in place and is not involved in any later update, and the updater never places a first copy.
+
+So when Setup finds the toolbox already in its folder it prints "The toolbox is already installed in this folder. / If you want to update it, just open it and it will auto-update." and stops — that is the installer pointing at the mechanism below rather than re-running itself. Opening the toolbox is what moves it to the newest release.
+
+See [Installation](../getting-started/installation.md) for what Setup does and what each route involves.
 
 ## What happens at launch
 

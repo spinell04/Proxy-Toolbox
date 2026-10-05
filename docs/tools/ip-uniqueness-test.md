@@ -4,11 +4,11 @@
 
 Connects to an IP-reflection service through each proxy and records the exit IP returned. It then tells you how many of your proxies actually have distinct IPs — and flags any duplicates with the exact line numbers.
 
-## Why it matters
+## What the result tells you
 
-A common proxy-provider scam is to sell a small pool of real IPs labelled as thousands of unique endpoints. You think you have 1,000 unique proxies; in reality it's 50 IPs reused 20 times each, which defeats the whole point of rotation.
+A list's line count and its distinct-exit-IP count are two different numbers. They are equal only when every proxy exits from its own address; where addresses are shared, the distinct count is lower.
 
-This tool catches that.
+The test reports both, and names the lines that share an address. What that means for a given list is yours to judge — the tool measures, it does not interpret.
 
 ## How it works
 

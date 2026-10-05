@@ -23,6 +23,12 @@ proxytoolbox-macOS-IntelCPU
 *.old
 *.new
 
+# What a local reproduction of the release workflow's Build step writes.
+# CI builds these on the runner and never commits them; this keeps a local
+# dry-run from leaving six release binaries staged by accident.
+dist/
+SHA256SUMS
+
 # Design docs and implementation plans. Working notes, not product
 # documentation — and docs/ is what GitBook publishes, so a plans/ folder here
 # becomes a section on the public site. Note .gitignore does nothing for the

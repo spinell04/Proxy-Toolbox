@@ -169,7 +169,7 @@ What it does instead is join **per proxy**, on the canonical `user:pass@host:por
 
 ### Expect the correlation to be near zero
 
-On realistic data it usually is. Every honest pair measured while building this view landed between −0.05 and 0.16.
+On realistic data it usually is. Every pair measured while building this view landed between −0.05 and 0.16.
 
 That is a result, not a malfunction. It says a proxy's latency in one of the two runs carries almost no information about its latency in the other: they are different measurements, and a position in one does not place a proxy in the other.
 

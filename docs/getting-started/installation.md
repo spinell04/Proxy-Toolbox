@@ -1,8 +1,60 @@
 # Installation
 
-## 1. Download the binary
+## 1. Get the binary
 
-Pick the binary for your platform from the [latest release](https://github.com/spinell04/Proxy-Toolbox/releases/latest):
+Two routes, both ending in the same place: this platform's toolbox binary sitting in a folder, keeping itself current from then on.
+
+### Route A — Setup
+
+Download one file from the [latest release](https://github.com/spinell04/Proxy-Toolbox/releases/latest):
+
+| Platform | Installer |
+|----------|-----------|
+| Apple Silicon (M1/M2/M3/M4) | `Setup-ProxyToolbox-mac-AppleSiliconCPU` |
+| Intel Macs | `Setup-ProxyToolbox-macOS-IntelCPU` |
+| Windows | `Setup-ProxyToolbox.exe` |
+
+Put it in the folder you want the toolbox to live in, and run it. It is ~5.6 MB against the toolbox's ~12.7 MB, because it carries no toolbox inside it — it fetches one. In order:
+
+1. If this platform's toolbox binary is **already in the installer's own folder**, it says so and exits, without contacting GitHub.
+2. Otherwise it asks GitHub for `/releases/latest`, downloads this platform's asset, verifies its SHA-256 against the release's `SHA256SUMS` **before anything is placed**, sets the executable bit, and renames it into the folder.
+3. It prints the version, the asset and the directory.
+
+**Every path then waits for Enter**, failures included. A double-clicked `.exe` opens a console that closes the instant the process exits, so without that wait the window flashes and the message is gone before anyone reads it.
+
+A run with no toolbox present, against a repository with no release to install from:
+
+```
+Proxy Toolbox installer v9.9.9
+
+Could not reach the release: GitHub API returned 404
+
+Press Enter to close...
+```
+
+A run beside an existing install:
+
+```
+Proxy Toolbox installer v9.9.9
+
+The toolbox is already installed in this folder.
+If you want to update it, just open it and it will auto-update.
+
+Press Enter to close...
+```
+
+That second message is the installer handing the job to the updater: the toolbox in that folder checks GitHub on every launch, so opening it is what moves it to the newest release. See [Auto-Update](../reference/auto-update.md).
+
+Four properties worth knowing before you keep or discard the installer:
+
+- **It never needs re-downloading.** It resolves `/releases/latest` at run time, so a copy saved a year ago installs whatever is current then — the same property that keeps the updater working across releases. The release it was built in is stamped in its header, for naming it in a support question; it drives nothing.
+- **Running it twice is a no-op, not a repair.** The already-installed check looks for the file, not for a working file. If the binary in the folder is corrupt, delete it and run Setup again.
+- **A failed install leaves the folder exactly as it was.** Verification precedes placement and the staged `.new` file is removed on every failure path, so there is no partial binary to find or clean up. A release with no `SHA256SUMS` is refused rather than installed unverified.
+- **It stops at the binary.** It does not create `proxyfiles/`, `results/` or `config.txt` — the toolbox does that on its own first run — and it does not launch the toolbox.
+
+### Route B — Direct download
+
+Pick the toolbox binary itself from the [latest release](https://github.com/spinell04/Proxy-Toolbox/releases/latest), and drop it in a folder:
 
 | Platform | Binary |
 |----------|--------|
@@ -10,13 +62,23 @@ Pick the binary for your platform from the [latest release](https://github.com/s
 | Intel Macs | `proxytoolbox-macOS-IntelCPU` |
 | Windows | `proxytoolbox.exe` |
 
-Each release also carries a `SHA256SUMS` asset listing the digest of all three, so a download can be checked by hand with `shasum -a 256 <file>`.
+On macOS, `chmod +x <binary>` may be needed the first time — the executable bit survives the release archive but not every browser. Setup sets it itself.
 
-**This is a one-time download.** On every launch the binary checks GitHub for a newer release and installs it, verifying the download against that `SHA256SUMS` before replacing anything. `config.txt`, `proxyfiles/` and `results/` are never touched. Set `auto_update=off` in `config.txt` to pin the version you have — see [Auto-Update](../reference/auto-update.md).
+### Either route
 
-Linux and Windows-on-ARM have no published binary; on those, [build from source](../reference/building-from-source.md).
+Each release carries a `SHA256SUMS` asset listing the digest of all six published files — three toolbox binaries and three installers — so anything you downloaded can be checked by hand with `shasum -a 256 <file>`.
 
-> On macOS, you may need to run `chmod +x proxytoolbox-mac-AppleSiliconCPU` the first time, and approve it in **System Settings → Privacy & Security** if Gatekeeper blocks it.
+**This is a one-time download.** On every launch the toolbox checks GitHub for a newer release and installs it, verifying the download against that `SHA256SUMS` before replacing anything. `config.txt`, `proxyfiles/` and `results/` are never touched. Set `auto_update=off` in `config.txt` to pin the version you have — see [Auto-Update](../reference/auto-update.md).
+
+Linux and Windows-on-ARM have no published binary and no published installer. Setup on those platforms says so and exits without contacting GitHub; on those, [build from source](../reference/building-from-source.md).
+
+### Gatekeeper and SmartScreen
+
+On macOS, a file a browser downloads carries `com.apple.quarantine`, and Gatekeeper blocks it until you right-click → **Open** (or run `xattr -d com.apple.quarantine <file>`). You can also approve it afterwards in **System Settings → Privacy & Security**. This applies to whichever file the browser wrote: the installer on Route A, the toolbox binary on Route B.
+
+A file written by the installer is created by an ordinary process rather than by LaunchServices, so it is **expected** to carry no quarantine attribute and to launch without a prompt — as are the binaries the auto-updater writes afterwards. On that reasoning, Route A meets Gatekeeper once, at Setup, rather than on each toolbox download. **This is reasoned from how the quarantine attribute is applied and has not been tested with a real browser download on a real Mac. Treat it as expected, not verified.**
+
+On Windows, SmartScreen warns about the unsigned `Setup-ProxyToolbox.exe` the same way it warns about the unsigned `proxytoolbox.exe`, and about any unsigned executable: **More info → Run anyway**. Neither route changes that.
 
 ## 2. Folder layout
 

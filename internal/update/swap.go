@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 const (
@@ -30,22 +31,22 @@ const (
 	newSuffix = ".new"
 )
 
-// install downloads the release asset and puts it in place of current.
+// stage downloads rel's asset to staged and verifies it, leaving an executable
+// file there on success.
 //
-// The order of operations is the design, not an implementation detail:
+// It does NOT clean up after itself: a checksum failure leaves the downloaded
+// file at staged, because download only removes it on its own I/O errors.
+// Removing it is the caller's job, and both callers do it with a defer
+// registered before this is called. A third caller that forgets would leak a
+// ~13 MB file per failed attempt.
 //
-//  1. download to current+".new"
-//  2. verify its SHA-256 against the release's SHA256SUMS
-//  3. make it executable
-//  4. rename current → current+".old"
-//  5. rename current+".new" → current
-//
-// Verification happens at step 2, before anything touches the running binary.
-// The update is unattended, so a truncated transfer or a substituted file must
-// not be able to become the thing the user runs. Any failure up to step 3
-// leaves the original in place and untouched, and the only trace is a .new
-// file that is removed on the way out.
-func (c Client) install(ctx context.Context, rel Release, asset, current string) error {
+// This is the half the updater and the installer have in common, and the half
+// where the order matters: nothing is placed anywhere until the SHA-256 of what
+// arrived matches what the release published. Both callers then move the staged
+// file into position by their own rules — the updater displaces a running
+// binary, the installer writes into an empty folder — and neither can reach
+// that step with an unverified file.
+func (c Client) stage(ctx context.Context, rel Release, asset, staged string) error {
 	assetURL := rel.Assets[asset]
 	if assetURL == "" {
 		return fmt.Errorf("release %s has no %s asset", rel.Tag, asset)
@@ -68,25 +69,66 @@ func (c Client) install(ctx context.Context, rel Release, asset, current string)
 		return fmt.Errorf("%s does not list %s", sumsAsset, asset)
 	}
 
-	next := current + newSuffix
-	if err := c.download(ctx, assetURL, next); err != nil {
+	if err := c.download(ctx, assetURL, staged); err != nil {
 		return err
 	}
-	// From here on, every failure path removes the download. Leaving a 13 MB
-	// .new file beside the binary would accumulate one per failed attempt.
+	if err := verifySHA256(staged, want); err != nil {
+		return err
+	}
+	if err := os.Chmod(staged, 0o755); err != nil {
+		return fmt.Errorf("making the download executable: %w", err)
+	}
+	return nil
+}
+
+// install downloads the release asset and puts it in place of current.
+//
+// The order of operations is the design, not an implementation detail: stage
+// verifies before anything touches the running binary, so a truncated transfer
+// or a substituted file cannot become the thing the user runs. Any failure
+// inside stage leaves the original in place and untouched, and the only trace
+// is a .new file that is removed on the way out.
+func (c Client) install(ctx context.Context, rel Release, asset, current string) error {
+	next := current + newSuffix
+
+	// Removed on every path. Leaving a 13 MB .new file beside the binary would
+	// accumulate one per failed attempt.
 	defer func() {
 		if _, err := os.Stat(next); err == nil {
 			os.Remove(next)
 		}
 	}()
 
-	if err := verifySHA256(next, want); err != nil {
+	if err := c.stage(ctx, rel, asset, next); err != nil {
 		return err
 	}
-	if err := os.Chmod(next, 0o755); err != nil {
-		return fmt.Errorf("making the download executable: %w", err)
-	}
 	return swap(current, next)
+}
+
+// Install downloads the release's asset for this platform into dir.
+//
+// The installer's counterpart to install: the same verified download, but
+// nothing is displaced, so there is no .old and no re-exec. A failure leaves
+// the directory exactly as it was found — which matters because the user is
+// watching a one-shot installer, and a half-written file would look like
+// success.
+func (c Client) Install(ctx context.Context, rel Release, asset, dir string) error {
+	dest := filepath.Join(dir, asset)
+	staged := dest + newSuffix
+
+	defer func() {
+		if _, err := os.Stat(staged); err == nil {
+			os.Remove(staged)
+		}
+	}()
+
+	if err := c.stage(ctx, rel, asset, staged); err != nil {
+		return err
+	}
+	if err := os.Rename(staged, dest); err != nil {
+		return fmt.Errorf("putting %s in place: %w", asset, err)
+	}
+	return nil
 }
 
 // fetchSums downloads and parses the release's SHA256SUMS.
