@@ -81,27 +81,47 @@ func TestHandler_RoutesAPIAndStatic(t *testing.T) {
 		name     string
 		method   string
 		target   string
-		wantCode int
+		wantCode int // ignored when wantRedirect is set
 		wantBody string
+		// wantRedirect asserts "any 3xx" instead of an exact code. The
+		// stdlib picks the code for a cleaned path and has changed it:
+		// ServeMux cleans with 301 on Go 1.25 and 307 on Go 1.26. Pinning
+		// either one makes the suite pass on one toolchain and fail on the
+		// other — which is exactly how this test passed locally and broke
+		// the release build. What the case is actually for is that the
+		// traversal is redirected rather than served, and that nothing
+		// leaks; both are asserted below regardless of the code.
+		wantRedirect bool
 	}{
-		{"api inventory", http.MethodGet, "/api/runs", http.StatusOK, "pinger_run.csv"},
-		{"api detail", http.MethodGet, "/api/run?file=pinger_run.csv", http.StatusOK, "\"summary\""},
-		{"api stays read-only", http.MethodPost, "/api/runs", http.StatusMethodNotAllowed, ""},
-		{"static index", http.MethodGet, "/", http.StatusOK, "<title>Compare · Proxy Toolbox</title>"},
-		{"static module", http.MethodGet, "/app.js", http.StatusOK, "uPlot 1.6.32"},
-		{"static vendored chart library", http.MethodGet, "/vendor/uPlot.min.js", http.StatusOK, "uPlot"},
-		{"static cannot reach results", http.MethodGet, "/pinger_run.csv", http.StatusNotFound, ""},
+		{name: "api inventory", method: http.MethodGet, target: "/api/runs", wantCode: http.StatusOK, wantBody: "pinger_run.csv"},
+		{name: "api detail", method: http.MethodGet, target: "/api/run?file=pinger_run.csv", wantCode: http.StatusOK, wantBody: "\"summary\""},
+		{name: "api stays read-only", method: http.MethodPost, target: "/api/runs", wantCode: http.StatusMethodNotAllowed},
+		{name: "static index", method: http.MethodGet, target: "/", wantCode: http.StatusOK, wantBody: "<title>Compare · Proxy Toolbox</title>"},
+		{name: "static module", method: http.MethodGet, target: "/app.js", wantCode: http.StatusOK, wantBody: "uPlot 1.6.32"},
+		{name: "static vendored chart library", method: http.MethodGet, target: "/vendor/uPlot.min.js", wantCode: http.StatusOK, wantBody: "uPlot"},
+		{name: "static cannot reach results", method: http.MethodGet, target: "/pinger_run.csv", wantCode: http.StatusNotFound},
 		// A traversing path is cleaned and redirected rather than served; the
 		// target it redirects to is itself not served, which the next case pins.
-		{"static traversal is cleaned away", http.MethodGet, "/../secret.csv", http.StatusTemporaryRedirect, ""},
-		{"static cannot reach the parent directory", http.MethodGet, "/secret.csv", http.StatusNotFound, ""},
+		{name: "static traversal is cleaned away", method: http.MethodGet, target: "/../secret.csv", wantRedirect: true},
+		{name: "static cannot reach the parent directory", method: http.MethodGet, target: "/secret.csv", wantCode: http.StatusNotFound},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := doHost(t, h, tc.method, tc.target, loopbackHost)
 
-			if rec.Code != tc.wantCode {
+			switch {
+			case tc.wantRedirect:
+				if rec.Code < 300 || rec.Code > 399 {
+					t.Errorf("status = %d, want a 3xx redirect", rec.Code)
+				}
+				// The destination is the security content: the traversal must
+				// resolve inside the served tree, and the next case pins that
+				// the cleaned target is itself a 404.
+				if loc := rec.Header().Get("Location"); loc != "/secret.csv" {
+					t.Errorf("Location = %q, want %q", loc, "/secret.csv")
+				}
+			case rec.Code != tc.wantCode:
 				t.Errorf("status = %d, want %d", rec.Code, tc.wantCode)
 			}
 			if tc.wantBody != "" && !strings.Contains(rec.Body.String(), tc.wantBody) {
