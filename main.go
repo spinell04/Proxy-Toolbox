@@ -9,9 +9,20 @@ import (
 
 	"proxytoolbox/internal/basedir"
 	"proxytoolbox/internal/bootstrap"
+	"proxytoolbox/internal/config"
 	"proxytoolbox/internal/dashboard"
 	"proxytoolbox/internal/tools"
+	"proxytoolbox/internal/update"
 )
+
+// version is set at link time by .github/workflows/release.yml:
+//
+//	-ldflags "-X main.version=v1.2.3"
+//
+// The "dev" default is what makes `go run .` and local builds safe: a binary
+// with this value never auto-updates, so a developer's working copy is never
+// replaced by the published release. See internal/update.IsRelease.
+var version = "dev"
 
 // siteRequestMenu shows the Site Request Tester submenu and reports whether a
 // tool ran. Both entries make a full request to one fixed site, which is what
@@ -74,6 +85,17 @@ func monitorMenu() bool {
 }
 
 func main() {
+	// Before bootstrap, and before the first menu: an update replaces this
+	// binary and re-execs, so anything done first would be done twice. It
+	// returns normally when there is nothing to do and never fails fatally —
+	// see internal/update.MaybeUpdate.
+	//
+	// The flag comes from config.AutoUpdateEnabled rather than Load because
+	// config.txt does not exist yet on a first run — bootstrap below is what
+	// creates it — and Load would announce that as a problem. The doc comment
+	// on AutoUpdateEnabled has the rest.
+	update.MaybeUpdate(version, config.AutoUpdateEnabled())
+
 	// The binary ships on its own and is dropped into an empty folder, so the
 	// layout it expects has to appear before the first menu. Reported rather
 	// than silent: files turning up next to the executable should be something
@@ -92,7 +114,7 @@ func main() {
 	for {
 		var choice string
 		err := huh.NewSelect[string]().
-			Title("Proxy Toolbox").
+			Title("Proxy Toolbox "+version).
 			Options(
 				huh.NewOption("IP Uniqueness Test — Check exit IPs, detect duplicates", "iptester"),
 				huh.NewOption("Site Request Test  — Full page requests to Ticketmaster or Bayern", "siterequest"),

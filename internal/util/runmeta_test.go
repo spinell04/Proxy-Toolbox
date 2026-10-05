@@ -21,6 +21,7 @@ func TestRunMeta_Rows(t *testing.T) {
 		{"Proxy file", "residential_de.txt"}, // base name only, not the user's full path
 		{"Target", "https://google.com"},
 		{"Workers", "100"},
+		{"IP mode", ""}, // pinger does no exit-IP lookup, so it records no mode
 	}
 
 	if len(got) != len(want) {
@@ -48,6 +49,7 @@ func TestRunMeta_RowsZeroValues(t *testing.T) {
 				{"Proxy file", ""}, // not ".", which filepath.Base("") would return
 				{"Target", ""},
 				{"Workers", "0"},
+				{"IP mode", ""},
 			},
 		},
 		{
@@ -57,6 +59,7 @@ func TestRunMeta_RowsZeroValues(t *testing.T) {
 				RunAt:     time.Date(2026, 9, 19, 9, 5, 0, 0, time.UTC),
 				ProxyFile: "/Users/someone/Desktop/Proxy-Toolbox/proxyfiles/datacenter_us.txt",
 				Workers:   20,
+				IPMode:    "both",
 			},
 			want: [][]string{
 				{"Tool", "iptester"},
@@ -64,6 +67,7 @@ func TestRunMeta_RowsZeroValues(t *testing.T) {
 				{"Proxy file", "datacenter_us.txt"},
 				{"Target", ""},
 				{"Workers", "20"},
+				{"IP mode", "both"},
 			},
 		},
 		{
@@ -80,6 +84,7 @@ func TestRunMeta_RowsZeroValues(t *testing.T) {
 				{"Proxy file", ""},
 				{"Target", "https://google.com"},
 				{"Workers", "0"},
+				{"IP mode", ""},
 			},
 		},
 	}

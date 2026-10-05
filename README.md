@@ -20,12 +20,14 @@ Listed in menu order.
 
 ## Quick Start
 
-1. Download the binary for your platform from the project root:
+1. Download the binary for your platform from the [latest release](https://github.com/spinell04/Proxy-Toolbox/releases/latest):
    - `proxytoolbox-mac-AppleSiliconCPU` — Apple Silicon (M1/M2/M3/M4)
    - `proxytoolbox-macOS-IntelCPU` — Intel Macs
    - `proxytoolbox.exe` — Windows
 2. Place your proxy files (`.txt`) in the `proxyfiles/` folder next to the binary
 3. Run the binary and navigate the menu with arrow keys
+
+That is the only download you need: the binary checks for a newer release on each launch and installs it, leaving `config.txt`, `proxyfiles/` and `results/` alone. See [Auto-Update](docs/reference/auto-update.md).
 
 ## Configuration
 
@@ -51,6 +53,14 @@ domain=google.com
 #                        the sampling period directly.
 monitor_interval_ms=1000
 session_interval_ms=60000
+
+# ─── Auto-update ─────────────────────────────────────
+# On startup, check GitHub for a newer release, install it and restart.
+# The download is verified against the release's SHA-256 before anything
+# is replaced, and a failed check never stops the toolbox from starting.
+#   on  = stay current automatically (recommended)
+#   off = never check; pin whatever binary you have
+auto_update=on
 ```
 
 ## Proxy Formats
@@ -80,7 +90,9 @@ proxyfiles/
 
 ## Building from Source
 
-Requires Go 1.25+.
+Requires Go 1.25+. No binaries are tracked in the repository — the release
+workflow is the only thing that builds the ones people download — so building
+is how you get one from a checkout.
 
 ```bash
 # Current platform
@@ -91,6 +103,14 @@ GOOS=darwin GOARCH=arm64 go build -o proxytoolbox-mac-AppleSiliconCPU .
 GOOS=darwin GOARCH=amd64 go build -o proxytoolbox-macOS-IntelCPU .
 GOOS=windows GOARCH=amd64 go build -o proxytoolbox.exe .
 ```
+
+All of those output names are gitignored, so a local build never gets
+committed by accident.
+
+A binary built this way reports version **`dev`** in the menu title and
+**never auto-updates** — only the release workflow stamps a real version. See
+[Building from Source](docs/reference/building-from-source.md) for how to
+reproduce a release build exactly.
 
 ## Export
 
@@ -113,9 +133,9 @@ After the IP Uniqueness, Ping, TM, and Bayern tests, you're also prompted to sav
 
 ## Documentation
 
-Detailed guides live in [`docs/`](docs/):
+Published at **[proxy-toolbox.gitbook.io](https://proxy-toolbox.gitbook.io/docs/)**, and in [`docs/`](docs/) in this repo:
 
 - **Getting Started** — [installation](docs/getting-started/installation.md), [configuration](docs/getting-started/configuration.md), [proxy formats](docs/getting-started/proxy-formats.md)
-- **Tools** — [IP Uniqueness Test](docs/tools/ip-uniqueness-test.md), [Ping Test](docs/tools/ping-test.md), [TM Request Tester](docs/tools/tm-request-tester.md), [Bayern Tester](docs/tools/bayern-tester.md), [Downtime Monitor](docs/tools/proxy-monitor.md), [Session Monitor](docs/tools/session-monitor.md), [Proxy Parser](docs/tools/proxy-parser.md), [Randomize File](docs/tools/randomize-file.md), [Compare Results](docs/tools/compare-results.md)
-- **Reference** — [exporting results](docs/reference/exporting-results.md), [building from source](docs/reference/building-from-source.md)
+- **Tools**, in menu order — [IP Uniqueness Test](docs/tools/ip-uniqueness-test.md), Site Request Test ([Ticketmaster](docs/tools/tm-request-tester.md), [Bayern](docs/tools/bayern-tester.md)), Monitor ([Downtime](docs/tools/proxy-monitor.md), [Session](docs/tools/session-monitor.md)), [Ping Test](docs/tools/ping-test.md), [Randomize File](docs/tools/randomize-file.md), [Proxy Parser](docs/tools/proxy-parser.md), [Compare Results](docs/tools/compare-results.md)
+- **Reference** — [exporting results](docs/reference/exporting-results.md), [auto-update](docs/reference/auto-update.md), [building from source](docs/reference/building-from-source.md)
 - **[Troubleshooting](docs/troubleshooting.md)**

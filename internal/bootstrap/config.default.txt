@@ -17,6 +17,18 @@ workers=100
 #   https://google.com  -> full HTTPS request
 domain=google.com
 
+# ─── Exit IP lookups ─────────────────────────────────
+# Which address families the IP Uniqueness Test and the Session Monitor ask
+# for. Each tool also prompts at runtime, so this is just the default.
+#   ipv4  one lookup per check against IPv4-only endpoints (recommended)
+#   ipv6  one lookup per check against IPv6-only endpoints
+#   both  two lookups per check — double the request volume against free
+#         third-party endpoints, and the session monitor's "lookups per
+#         minute" figure doubles with it
+# A proxy that answers only one family is not broken: in both mode the other
+# family is reported as unknown for that check, never as a rotation.
+ip_mode=ipv4
+
 # ─── Discord alerts ──────────────────────────────────
 # Webhook URL for monitor alerts (leave empty to disable).
 # Treat this as a password: anyone holding it can post to your channel.
@@ -49,3 +61,13 @@ session_interval_ms=60000
 ping_max_latency_ms=
 tm_max_latency_ms=
 bayern_max_latency_ms=
+
+# ─── Auto-update ─────────────────────────────────────
+# On startup, check GitHub for a newer release, install it and restart.
+# The download is verified against the release's SHA-256 before anything is
+# replaced, and a failed check never stops the toolbox from starting.
+#   on  = stay current automatically (recommended)
+#   off = never check; pin whatever binary you have
+# Turn it off if you need a specific version, or on a machine running a
+# monitor for days that must not restart underneath you.
+auto_update=on

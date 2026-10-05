@@ -2,13 +2,19 @@
 
 ## 1. Download the binary
 
-Pick the binary for your platform from the project root:
+Pick the binary for your platform from the [latest release](https://github.com/spinell04/Proxy-Toolbox/releases/latest):
 
 | Platform | Binary |
 |----------|--------|
 | Apple Silicon (M1/M2/M3/M4) | `proxytoolbox-mac-AppleSiliconCPU` |
 | Intel Macs | `proxytoolbox-macOS-IntelCPU` |
 | Windows | `proxytoolbox.exe` |
+
+Each release also carries a `SHA256SUMS` asset listing the digest of all three, so a download can be checked by hand with `shasum -a 256 <file>`.
+
+**This is a one-time download.** On every launch the binary checks GitHub for a newer release and installs it, verifying the download against that `SHA256SUMS` before replacing anything. `config.txt`, `proxyfiles/` and `results/` are never touched. Set `auto_update=off` in `config.txt` to pin the version you have — see [Auto-Update](../reference/auto-update.md).
+
+Linux and Windows-on-ARM have no published binary; on those, [build from source](../reference/building-from-source.md).
 
 > On macOS, you may need to run `chmod +x proxytoolbox-mac-AppleSiliconCPU` the first time, and approve it in **System Settings → Privacy & Security** if Gatekeeper blocks it.
 
@@ -69,7 +75,7 @@ Building from source is the one exception: under `go run .` the binary lives in 
 You'll land on the main menu:
 
 ```
-Proxy Toolbox
+Proxy Toolbox v1.0.2
 > IP Uniqueness Test — Check exit IPs, detect duplicates
   Site Request Test  — Full page requests to Ticketmaster or Bayern
   Monitor            — Downtime and session monitoring
@@ -81,6 +87,8 @@ Proxy Toolbox
 ```
 
 Use **↑ / ↓** to navigate and **Enter** to select.
+
+The title carries the version, which is how you tell what you are running. A locally built binary says `Proxy Toolbox dev` instead, and a `dev` build never auto-updates.
 
 **Site Request Test** and **Monitor** open submenus rather than running straight away:
 

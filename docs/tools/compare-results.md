@@ -87,21 +87,23 @@ If you tick rows that no view can render, the page says so and lists what each v
 
 Above the Timeline sits a verdict on whether the runs are actually comparable. Head-to-head does not use it, and runs its own narrower check instead — see [Comparing providers](#comparing-providers).
 
-A trend line across four ping runs looks exactly the same whether your proxies degraded or you pointed the third run at a different target, swapped the proxy file, or doubled the worker count. The chart cannot tell those apart. So before you reach it, the banner compares **Target**, **Proxy file** and **Workers** across the selection and, when any of them differs, says so in the clear:
+A trend line across four ping runs looks exactly the same whether your proxies degraded or you pointed the third run at a different target, swapped the proxy file, doubled the worker count, or asked for a different address family. The chart cannot tell those apart. So before you reach it, the banner compares **Target**, **Proxy file**, **Workers** and **IP mode** across the selection and, when any of them differs, says so in the clear:
 
-> **Not directly comparable** — One of target, proxy file and worker count changed across these runs. A movement in the charts below may be that change rather than a change in the proxies.
+> **Not directly comparable** — One of target, proxy file, worker count and IP mode changed across these runs. A movement in the charts below may be that change rather than a change in the proxies.
 
-…followed by which values were used and which files used each. When all three match, it says the opposite, equally plainly.
+…followed by which values were used and which files used each. When all four match, it says the opposite, equally plainly.
+
+**IP mode** is in that list because an IP Uniqueness Test run that asked for IPv4 exits and one that asked for IPv6 exits measured two different address spaces. Their uniqueness figures are not two readings of one thing, and setting them on a shared axis is exactly the error this banner exists to catch.
 
 This is the entire reason the exporters were taught to write metadata rows into the CSV. Without those rows there is nothing to compare, and a chart quietly attributes a changed test to degraded proxies.
 
-A value that was never recorded is not treated as a third opinion — it is set aside and counted separately. The IP Uniqueness Test writes no target at all, for instance, because it doesn't have one.
+A value that was never recorded is not treated as another opinion — it is set aside and counted separately. The IP Uniqueness Test writes no target at all, for instance, because it doesn't have one, and no tool but the IP Uniqueness Test records an IP mode. An export made before IP modes existed records none either, and that reads as unknown rather than as a difference.
 
 ## Older exports
 
 CSVs exported before the metadata rows existed still parse and still show up in the inventory. What they lack is the description of the run:
 
-- Their **Tool**, **Run at**, **Proxy file**, **Target** and **Workers** columns read `unknown`. (A run that *does* carry metadata but genuinely had no target — the IP Uniqueness Test — reads `n/a` instead, so the two cases stay distinguishable.)
+- Their **Tool**, **Run at**, **Proxy file**, **Target** and **Workers** columns read `unknown`. The same goes for **IP mode** on a run's detail page, which reads `not recorded` for every export made before address families were selectable — and for every tool but the IP Uniqueness Test, which is the only one that looks up an exit IP. (A run that *does* carry metadata but genuinely had no target — the IP Uniqueness Test — reads `n/a` instead, so the two cases stay distinguishable.)
 - With no run time, they cannot be placed on the time axis, so the Timeline's trend charts leave them out — named, not silently dropped — and they are not checked for comparability. They still appear in the latency-distribution chart, which has no time axis.
 - With no tool name, they can't be grouped with anything by tool, so a selection containing one is never "same tool". Beside a ping run, such a file lands in the Cross-tool view with its column labelled `unknown`, which is the honest answer: the join is per proxy and doesn't care what produced a column.
 
@@ -113,7 +115,9 @@ Tick two or more runs of the same tool that were run against **different proxy f
 
 It is a different question from the other two multi-run views, and they are built on the opposite assumption. Timeline and Paired both take one population measured more than once — Paired joins on the proxy itself and reports only the proxies present in both runs, Timeline puts the runs on a time axis and draws a trend through them. Two providers share no proxies, so Paired would have nothing to join and Timeline would draw a trend between two unrelated things. Head-to-head treats each proxy file as its own population and never joins them.
 
-Head-to-head does not show the Timeline's three-field comparability banner. A differing proxy file is the premise of this view, so a banner that reported it would fire on every selection. What it checks instead is **target** and **worker count**: if either differs across the runs, a line above the panels says which, and what that does to the comparison. If both match, the view says nothing — there is nothing to warn about.
+Head-to-head does not show the Timeline's four-field comparability banner. A differing proxy file is the premise of this view, so a banner that reported it would fire on every selection. What it checks instead is **target**, **worker count** and **IP mode**: if any differs across the runs, a line above the panels says which, and what that does to the comparison. If all three match, the view says nothing — there is nothing to warn about.
+
+Those three matter more here than in Timeline, not less. There, a changed target moves a trend you can still see moving; here it silently *becomes* the whole difference between two providers. Comparing a v4 run of one provider against a v6 run of another is that error in its purest form — two address spaces, one column each, and nothing on screen saying so unless this line says it.
 
 The one other case it reports is when fewer than two of the selected runs recorded any metadata at all, so the check could not be made.
 

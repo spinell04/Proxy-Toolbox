@@ -56,6 +56,7 @@ Run at,2026-09-19T14:32:07Z
 Proxy file,residential.txt
 Target,https://google.com
 Workers,40
+IP mode,
 Proxies tested,1000
 Successful,985
 Errors,15
@@ -71,7 +72,7 @@ Average latency,384ms
 
 ### The metadata block
 
-The five rows at the top describe the run that produced the file:
+The six rows at the top describe the run that produced the file:
 
 | Row | Contents |
 |-----|----------|
@@ -80,10 +81,11 @@ The five rows at the top describe the run that produced the file:
 | `Proxy file` | The base name of the proxy file tested. Only the base name — the path to it on your machine never leaves your machine |
 | `Target` | The domain or URL tested. Empty for the IP Uniqueness Test, which has no target |
 | `Workers` | The concurrency the run used |
+| `IP mode` | Which address families the exit-IP lookups asked for: `ipv4`, `ipv6` or `both`. Empty for every tool but the IP Uniqueness Test, which is the only one that looks up an exit IP |
 
-These rows are what make an export self-describing, and they are what [Compare Results](../tools/compare-results.md) uses to tell a genuine change in proxy quality from a changed target, a different input file, or a bumped worker count.
+These rows are what make an export self-describing, and they are what [Compare Results](../tools/compare-results.md) uses to tell a genuine change in proxy quality from a changed target, a different input file, a bumped worker count, or a run that measured a different address family.
 
-CSVs exported before these rows existed still open and still parse — they just can't be placed on a timeline, and show `unknown` where the metadata would be.
+CSVs exported before these rows existed still open and still parse — they just can't be placed on a timeline, and show `unknown` where the metadata would be. The same holds one row at a time: an export made before `ip_mode` existed has no `IP mode` row, and that is read as **unknown**, never as "the same as the others".
 
 ### The proxy column
 
@@ -98,9 +100,15 @@ The per-proxy table identifies each proxy by its canonical form, `user:pass@host
 | Ping Test | `#`, `Proxy`, `Latency`, `Status`, `Error` |
 | TM Request Tester | `#`, `Proxy`, `Latency`, `Status`, `Error` |
 | Bayern Tester | `#`, `Proxy`, `Latency`, `Status`, `Error` |
-| IP Uniqueness Test | `#`, `Proxy`, `Exit IP`, `Latency`, `Error` |
+| IP Uniqueness Test | `#`, `Proxy`, then one column per address family the run asked for — `Exit IPv4`, `Exit IPv6`, or both — then `Latency`, `Error` |
 
-The **IP Uniqueness Test** export carries one extra section: a *Repeated IPs* table, between the summary and the per-proxy table, listing every duplicated exit IP and the source lines that share it. See [IP Uniqueness Test](../tools/ip-uniqueness-test.md#csv-export) for the exact format.
+The IP Uniqueness Test's address columns are **named per family**, and only the families the run asked for appear: an `ipv4` run writes `Exit IPv4` alone, a `both` run writes `Exit IPv4` and `Exit IPv6`.
+
+Exports made before address families were selectable carry one unlabelled `Exit IP` column instead. Both spellings load: [Compare Results](../tools/compare-results.md) reads the legacy column and sorts its address into the right family by parsing it, so older exports keep working and show exit IPs exactly as they always did.
+
+The **IP Uniqueness Test** export carries one extra section: a *Repeated IPs* table, between the summary and the per-proxy table, listing every duplicated exit address, the family it belongs to, and the source lines that share it. See [IP Uniqueness Test](../tools/ip-uniqueness-test.md#csv-export) for the exact format.
+
+One more thing to know about the `Error` column there: in `both` mode a check that got one address but not the other is a **success**, and the family that gave no answer is reported in `Error` while `Latency` is still filled in. An error alongside an address is a partial check, not a failed one.
 
 ## Opening exports
 
@@ -126,7 +134,7 @@ Save filtered proxies (latency < 800ms) to proxyfiles/? (Enter to skip, or type 
 
 | Tool | Filter | Config key |
 |------|--------|------------|
-| [IP Uniqueness Test](../tools/ip-uniqueness-test.md) | One proxy per unique exit IP (duplicates + errored dropped) | — |
+| [IP Uniqueness Test](../tools/ip-uniqueness-test.md) | One proxy per unique exit identity — one address in single-family mode, the **pair** in `both` mode (duplicates + errored dropped) | — |
 | [Ping Test](../tools/ping-test.md) | Successful proxies under the latency threshold | `ping_max_latency_ms` |
 | [TM Request Tester](../tools/tm-request-tester.md) | `200 OK` proxies under the latency threshold | `tm_max_latency_ms` |
 | [Bayern Tester](../tools/bayern-tester.md) | `200 OK` proxies under the latency threshold | `bayern_max_latency_ms` |
@@ -140,4 +148,4 @@ Neither monitor prompts for export. Each streams to its own log in `results/` wh
 | Tool | Log file | What it records |
 |------|----------|-----------------|
 | [Downtime Monitor](../tools/proxy-monitor.md) | `results/monitor.log` | Every failed check, with the target and the full error |
-| [Session Monitor](../tools/session-monitor.md) | `results/session-monitor.log` | Every failed check, and every exit-IP rotation with the old IP, the new IP and how long the old one was held |
+| [Session Monitor](../tools/session-monitor.md) | `results/session-monitor.log` | Every failed check; every exit-IP rotation with the address family, the old address, the new address and how long the old one was held; and a `PARTIAL` line for a family that gave no answer on a check that otherwise succeeded |

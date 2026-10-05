@@ -2,6 +2,7 @@ package compare
 
 import (
 	"encoding/csv"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -118,6 +119,8 @@ func parseMeta(rows [][]string) Meta {
 			m.Target = val
 		case "Workers":
 			m.Workers, _ = strconv.Atoi(val)
+		case "IP mode":
+			m.IPMode = val
 		}
 	}
 	return m
@@ -164,6 +167,7 @@ func parseProxyRows(header []string, rows [][]string) []ProxyResult {
 		if errRaw != "" {
 			outcome = OutcomeError
 		}
+		exit := readExitIPs(get(row, "Exit IP"), get(row, "Exit IPv4"), get(row, "Exit IPv6"))
 		results = append(results, ProxyResult{
 			ProxyID:   strings.TrimSpace(row[idIdx]),
 			LatencyMs: parseLatencyMs(get(row, "Latency")),
@@ -171,10 +175,51 @@ func parseProxyRows(header []string, rows [][]string) []ProxyResult {
 			Outcome:   outcome,
 			ErrorRaw:  errRaw,
 			ErrorKind: classifyError(errRaw),
-			ExitIP:    get(row, "Exit IP"),
+			ExitIP:    exit.single(),
+			ExitIPv4:  exit.V4,
+			ExitIPv6:  exit.V6,
 		})
 	}
 	return results
+}
+
+// exitIPs is one row's exit addresses.
+type exitIPs struct {
+	V4 string
+	V6 string
+}
+
+// single is the one-address view ExitIP has always carried, v4 first: callers
+// written before modes existed want an address, not a family.
+func (e exitIPs) single() string {
+	if e.V4 != "" {
+		return e.V4
+	}
+	return e.V6
+}
+
+// readExitIPs reads both CSV spellings. iptester wrote one unlabelled "Exit IP"
+// column before address families were selectable; it now writes "Exit IPv4"
+// and/or "Exit IPv6". The legacy column is sorted by parsing it, so an old
+// export's addresses land in the same fields a new one's do rather than in a
+// third place every caller would have to know about.
+func readExitIPs(legacy, v4, v6 string) exitIPs {
+	e := exitIPs{V4: v4, V6: v6}
+	if legacy == "" {
+		return e
+	}
+	if ip := net.ParseIP(legacy); ip != nil && ip.To4() == nil {
+		if e.V6 == "" {
+			e.V6 = legacy
+		}
+		return e
+	}
+	// Unparseable text falls to v4, the family every pre-mode export was
+	// overwhelmingly reporting. Dropping it would lose the column entirely.
+	if e.V4 == "" {
+		e.V4 = legacy
+	}
+	return e
 }
 
 // parseLatencyMs reads the "340ms" form the tools write. Anything else is 0.

@@ -3,7 +3,8 @@
 // This is the reason the exporters were taught to record their own metadata.
 // A trend line across four pinger runs looks the same whether the proxies got
 // worse or the operator pointed the third run at a different target, doubled
-// the worker count, or swapped the proxy file. The chart cannot tell those
+// the worker count, swapped the proxy file, or asked for a different address
+// family. The chart cannot tell those
 // apart and neither can the reader, so the difference is named here, in the
 // clear, before the chart is reached.
 //
@@ -14,11 +15,20 @@
 
 import { el } from '../format.js';
 
-/** FIELDS are the three facts that decide whether two runs measured the same thing. */
+/**
+ * FIELDS are the four facts that decide whether two runs measured the same thing.
+ *
+ * The IP mode belongs here for the same reason the target does: an iptester run
+ * that asked for IPv4 exits and one that asked for IPv6 exits measured two
+ * different address spaces, and placing their uniqueness figures on one line
+ * invites exactly the reading this banner exists to prevent. Exports made
+ * before modes existed record no mode, which is unknown rather than different.
+ */
 const FIELDS = [
   { key: 'target', label: 'Target', read: (run) => run.target },
   { key: 'proxyFile', label: 'Proxy file', read: (run) => run.proxyFile },
   { key: 'workers', label: 'Workers', read: (run) => (run.workers > 0 ? String(run.workers) : '') },
+  { key: 'ipMode', label: 'IP mode', read: (run) => run.ipMode ?? '' },
 ];
 
 /**
@@ -77,7 +87,7 @@ export function banner(dated, undated, withMeta) {
       el('p', { class: 'banner__label', text: 'Not directly comparable' }),
       el('p', {
         class: 'banner__lead',
-        text: `${differing.length === 1 ? 'One' : String(differing.length)} of target, proxy file and worker count changed across these runs. A movement in the charts below may be that change rather than a change in the proxies.`,
+        text: `${differing.length === 1 ? 'One' : String(differing.length)} of target, proxy file, worker count and IP mode changed across these runs. A movement in the charts below may be that change rather than a change in the proxies.`,
       }),
       el(
         'dl',
@@ -115,7 +125,7 @@ export function banner(dated, undated, withMeta) {
       el('p', { class: 'banner__label', text: 'Comparable' }),
       el('p', {
         class: 'banner__lead',
-        text: `Target, proxy file and worker count match across all ${withMeta.length} runs carrying metadata, so a movement in the charts below is a movement in the proxies.`,
+        text: `Target, proxy file, worker count and IP mode match across all ${withMeta.length} runs carrying metadata, so a movement in the charts below is a movement in the proxies.`,
       }),
     );
   }
@@ -133,7 +143,7 @@ export function banner(dated, undated, withMeta) {
             undated.length === 1 ? 'It is' : 'They are'
           } left off the two time-axis charts entirely rather than given an invented position, and ${
             undated.length === 1 ? 'its' : 'their'
-          } target, proxy file and worker count are not compared above. ${
+          } target, proxy file, worker count and IP mode are not compared above. ${
             undated.length === 1 ? 'It still appears' : 'They still appear'
           } in the latency distribution, which has no time axis.`,
         ),

@@ -1,0 +1,30 @@
+{
+  "tag_name": "v1.4.2",
+  "name": "v1.4.2",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-01T12:00:00Z",
+  "body": "Session monitor IP modes.",
+  "assets": [
+    {
+      "name": "SHA256SUMS",
+      "size": 221,
+      "browser_download_url": "https://github.com/spinell04/Proxy-Toolbox/releases/download/v1.4.2/SHA256SUMS"
+    },
+    {
+      "name": "proxytoolbox.exe",
+      "size": 19512344,
+      "browser_download_url": "https://github.com/spinell04/Proxy-Toolbox/releases/download/v1.4.2/proxytoolbox.exe"
+    },
+    {
+      "name": "proxytoolbox-mac-AppleSiliconCPU",
+      "size": 18440112,
+      "browser_download_url": "https://github.com/spinell04/Proxy-Toolbox/releases/download/v1.4.2/proxytoolbox-mac-AppleSiliconCPU"
+    },
+    {
+      "name": "proxytoolbox-macOS-IntelCPU",
+      "size": 19612880,
+      "browser_download_url": "https://github.com/spinell04/Proxy-Toolbox/releases/download/v1.4.2/proxytoolbox-macOS-IntelCPU"
+    }
+  ]
+}

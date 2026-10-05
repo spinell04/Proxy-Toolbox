@@ -17,6 +17,10 @@ type RunMeta struct {
 	ProxyFile string    // path to the proxy file tested; only the base name is written
 	Target    string    // domain or URL tested, empty where not applicable
 	Workers   int       // concurrency used
+	// IPMode is which address families the exit-IP lookups asked for:
+	// "ipv4", "ipv6" or "both". Empty where not applicable, which is every
+	// tool but iptester, and every export made before modes existed.
+	IPMode string
 }
 
 // Rows renders the metadata as leading key/value rows for a results CSV.
@@ -34,5 +38,6 @@ func (m RunMeta) Rows() [][]string {
 		{"Proxy file", proxyFile},
 		{"Target", m.Target},
 		{"Workers", strconv.Itoa(m.Workers)},
+		{"IP mode", m.IPMode},
 	}
 }

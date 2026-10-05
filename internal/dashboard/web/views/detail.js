@@ -79,6 +79,10 @@ function headline(run) {
       fact('Target', run.target || 'not recorded'),
       fact('Proxy file', run.proxyFile || 'not recorded'),
       fact('Workers', run.workers > 0 ? count(run.workers) : 'not recorded'),
+      // Only the IP Uniqueness Test looks up an exit IP, so every other tool
+      // legitimately records no mode. "Not recorded" is the honest reading
+      // either way: an older iptester export has none either.
+      fact('IP mode', run.ipMode || 'not recorded'),
       fact('File', run.file),
     ]),
   ]);

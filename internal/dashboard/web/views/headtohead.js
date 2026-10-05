@@ -120,25 +120,27 @@ function byProvider(runs) {
 }
 
 /**
- * framing checks the two fields that can invalidate this comparison, and is
- * silent when neither does.
+ * framing checks the three fields that can invalidate this comparison, and is
+ * silent when none does.
  *
- * Not the generic three-field comparability check used by Timeline. That one
+ * Not the generic four-field comparability check used by Timeline. That one
  * also reports a differing proxy file, which here is the premise of the view
  * rather than a fault in it: on this selection it fired every time, and a
  * standing alarm is one nobody reads on the day the target changed.
  *
- * The target and the worker count are the fields that do invalidate this
- * comparison, and they matter more here than in Timeline, not less: there, a
- * changed target moves a trend the reader can still see moving; here it
- * silently becomes the whole difference between two providers.
+ * The target, the worker count and the IP mode are the fields that do
+ * invalidate this comparison, and they matter more here than in Timeline, not
+ * less: there, a changed target moves a trend the reader can still see moving;
+ * here it silently becomes the whole difference between two providers. A v4 run
+ * set beside a v6 run is that error in its purest form — two address spaces,
+ * one column each, and nothing on screen saying so.
  */
 function framing(withMeta) {
   if (withMeta.length < 2) {
     return el('p', { class: 'h2h__framing' }, [
       el('span', { class: 'h2h__framing-label', text: 'Not checked' }),
       document.createTextNode(
-        'Fewer than two of these runs recorded their own metadata, so whether they used the same target and worker count cannot be established. Every figure below assumes they did.',
+        'Fewer than two of these runs recorded their own metadata, so whether they used the same target, worker count and IP mode cannot be established. Every figure below assumes they did.',
       ),
     ]);
   }
@@ -165,12 +167,12 @@ function framing(withMeta) {
 }
 
 /**
- * NOUNS names the two checked fields as they read inside a sentence.
+ * NOUNS names the three checked fields as they read inside a sentence.
  *
  * Not the banner's column labels: "Workers" is a heading and reads as a plural
  * subject in prose, which puts the verb in the wrong number.
  */
-const NOUNS = { target: 'target', workers: 'worker count' };
+const NOUNS = { target: 'target', workers: 'worker count', ipMode: 'IP mode' };
 
 /** list joins clauses with commas and a final "and". */
 const list = (parts) =>

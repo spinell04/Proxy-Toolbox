@@ -11,10 +11,25 @@ Reach it from **Monitor → Session monitor** in the main menu.
 ## How it works
 
 1. Pick a proxy file.
-2. Choose an interval in milliseconds (default from `session_interval_ms`, built-in `60000`).
-3. Every interval the monitor checks **all** proxies in parallel, fetching each exit IP via the same rotating endpoint set the [IP Uniqueness Test](ip-uniqueness-test.md) uses. Concurrency comes from `workers`.
+2. Choose an **IP mode** from the arrow-key menu — IPv4 only, IPv6 only, or both. The `ip_mode` value from `config.txt` is pre-selected (built-in `ipv4`), so Enter accepts it.
+3. Choose an interval in milliseconds (default from `session_interval_ms`, built-in `60000`).
+4. Every interval the monitor checks **all** proxies in parallel, fetching each exit IP via the same single-family endpoint sets the [IP Uniqueness Test](ip-uniqueness-test.md) uses. Concurrency comes from `workers`.
 
-The **first** exit IP seen for a proxy is a silent baseline. Every later IP that differs from the one before it is a rotation, and every rotation is alerted — there is no threshold and no "expected rotation" suppression.
+The **first** address a family answers with is a silent baseline. Every later address that differs from that family's previous one is a rotation, and every rotation is alerted — there is no threshold and no "expected rotation" suppression.
+
+### Address families, and why one going quiet is silent
+
+The two families are tracked **independently**. In `both` mode a single check can rotate the IPv4 exit, the IPv6 exit, both, or neither, and every alert and log line names which family moved.
+
+One rule in here looks like a bug until you know why it is there:
+
+> **A family that stops answering is silent, and its last known address is kept.**
+
+A proxy with no IPv6 route and an IPv6 endpoint that happened to time out are indistinguishable from this side of the connection. If "no answer" were treated as "the exit disappeared", every v4-only proxy in the file would alert on every single cycle, forever, about nothing. So no answer means *unknown for this check* — not absent. Nothing is alerted, nothing is cleared, and the next answer is compared against the address the family actually had.
+
+The mirror of that rule: a family answering for the **first** time, however late in the run, is a silent baseline, exactly like the first observation of a proxy. A v6 route that only appears on the fortieth cycle has not rotated; it has been seen once.
+
+This is the rule that makes the whole thing usable. Before single-family endpoints existed the monitor asked dual-stack services, so a dual-stack proxy answered with its v4 exit on one check and its v6 exit on the next — and alerted on roughly half of all consecutive check pairs, continuously, about a proxy that had not changed at all.
 
 ## The interval, and what it costs (read this)
 
@@ -25,18 +40,28 @@ every proxy checked every <interval>
 IP lookups per minute = proxies ÷ interval, in minutes
 ```
 
-That second line is the one to watch. The exit IP comes from free third-party endpoints (`api.ipify.org`, `ifconfig.me`, `icanhazip.com`), and **100 proxies on a 60-second cycle is 100 lookups a minute, 6 000 an hour, indefinitely.** Those services will start refusing you, and a refusal arrives as a failed check. The banner puts the figure in front of you:
+That second line is the one to watch. The exit IP comes from free third-party endpoints, and **100 proxies on a 60-second cycle is 100 lookups a minute, 6 000 an hour, indefinitely.** Those services will start refusing you, and a refusal arrives as a failed check. The banner puts the figure in front of you:
 
 ```
 File     : proxyfiles/sticky.txt
 Proxies  : 100
 Workers  : 100
 Interval : 60000ms per cycle
+IP mode  : IPv4 only
 Coverage : every proxy checked every ~1m
 Load     : ~100 IP lookups per minute
 Webhook  : enabled
 Log file : results/session-monitor.log
 ```
+
+**In `both` mode that figure doubles**, because each check asks two endpoint sets instead of one:
+
+```
+IP mode  : IPv4 and IPv6
+Load     : ~200 IP lookups per minute
+```
+
+The banner reports it correctly, which is the point — `both` is twice the request volume against services that are doing you a favour. Lengthen the interval, or shorten the list, to pay for it.
 
 This is a report, not a limit. Nothing is clamped. Size the interval against your list: sticky sessions last an hour, so a one- or five-minute cycle sees every rotation with room to spare, and there is nothing to gain from checking every second.
 
@@ -53,18 +78,31 @@ Cadence is measured from the **start** of each cycle, so the sampling period sta
 Rows appear as each check finishes, so within a cycle they are in **completion order, not file order** — the `#` column is the proxy's line in the file.
 
 ```
-Time      Cyc   #     Proxy                                 Exit IP           Latency   Status
-----------------------------------------------------------------------------------------------
-09:14:02  C1    #1    user-session1:pw@gw.example.com:9000  45.12.8.7         412ms     OK
-09:14:02  C1    #2    user-session2:pw@gw.example.com:9001  45.12.8.9         388ms     OK
-09:15:02  C2    #2    user-session2:pw@gw.example.com:9001  45.12.8.9         401ms     OK
-09:15:03  C2    #1    user-session1:pw@gw.example.com:9000  88.4.201.3        409ms     *** ROTATED  45.12.8.7 -> 88.4.201.3
-09:16:04  C3    #2    user-session2:pw@gw.example.com:9001  -                 -         FAIL  i/o timeout
+Time      Cyc   #     Proxy                                 Exit IPv4           Latency   Status
+------------------------------------------------------------------------------------------------
+09:14:02  C1    #1    user-session1:pw@gw.example.com:9000  45.12.8.7           412ms     OK
+09:14:02  C1    #2    user-session2:pw@gw.example.com:9001  45.12.8.9           388ms     OK
+09:15:02  C2    #2    user-session2:pw@gw.example.com:9001  45.12.8.9           401ms     OK
+09:15:03  C2    #1    user-session1:pw@gw.example.com:9000  88.4.201.3          409ms     *** ROTATED  IPv4 45.12.8.7 -> 88.4.201.3
+09:16:04  C3    #2    user-session2:pw@gw.example.com:9001  -                   -         FAIL  i/o timeout
+```
+
+In `both` mode there is a column per family:
+
+```
+Time      Cyc   #     Proxy                                 Exit IPv4           Exit IPv6                                Latency   Status
+-----------------------------------------------------------------------------------------------------------------------------------------
+09:14:02  C1    #1    user-session1:pw@gw.example.com:9000  45.12.8.7           2a02:908:1c6::7                          412ms     OK
+09:14:02  C1    #2    user-session2:pw@gw.example.com:9001  45.12.8.9           2a02:908:1c6::9                          388ms     OK
+09:15:02  C2    #2    user-session2:pw@gw.example.com:9001  45.12.8.9           -                                        401ms     OK
+09:15:03  C2    #1    user-session1:pw@gw.example.com:9000  88.4.201.3          2a02:908:1c6::7                          409ms     *** ROTATED  IPv4 45.12.8.7 -> 88.4.201.3
+09:16:04  C3    #2    user-session2:pw@gw.example.com:9001  -                   -                                        -         FAIL  i/o timeout
 ```
 
 - **Cyc** — which pass through the full list this check belongs to
 - **Proxy** — the full `user:pass@host:port` ID, never shortened
-- **Status** — `OK`, a yellow `*** ROTATED old -> new`, or a red `FAIL` plus a short reason
+- **Exit IPv4 / Exit IPv6** — the addresses this check got. A `-` is a family that gave no answer: cycle C2 above is the "unknown, not absent" case, and note that it produces an `OK`, not a `FAIL`, and no rotation.
+- **Status** — `OK`, a yellow `*** ROTATED IPvN old -> new` (both families when both moved, separated by `|`), or a red `FAIL` plus a short reason
 
 ### The proxy column is never truncated
 
@@ -78,7 +116,7 @@ Both monitors share the `discord_webhook` key. Leave it blank to run fully local
 
 | Alert | Trigger | Colour |
 |-------|---------|--------|
-| **Proxy IP ROTATED** | The exit IP differs from the last one observed for that proxy | Yellow |
+| **Proxy IPv4 ROTATED** / **Proxy IPv6 ROTATED** | That family's exit address differs from the last one it answered with | Yellow |
 | **Proxy CHECK FAILING** | The 5th consecutive failed check for that proxy, and again on the 30th | Red |
 | **Proxy CHECK RECOVERED** | The first success after a **FAILING** alert was sent | Green |
 
@@ -88,7 +126,9 @@ Every embed carries the proxy's full ID, its **`#`** — the proxy's line in the
 
 ### Rotation alerts
 
-The embed names the proxy, its `#`, the old IP, the new IP and how long the old IP had been held. The first observation of a proxy never alerts — there is nothing to compare it to.
+The embed names the proxy, its `#`, the **address family** that rotated, the old address, the new address and how long the old one had been held. The family is in the title too, so a webhook read on a phone says which exit moved without being opened.
+
+The first observation of a family never alerts — there is nothing to compare it to. Neither does a family falling silent. In `both` mode a check where both families rotated sends **two** embeds, one per family: they are two separate facts about the proxy.
 
 ### Recovery alerts
 
@@ -108,36 +148,57 @@ A single failed check means nothing: gateways drop requests, and one timeout is 
 
 Any successful check resets the counter to zero, re-arming the ladder for next time.
 
-A failed check is **not** a rotation. It does not alert as one and it does not overwrite the last known IP, so the next success is compared against the IP the proxy actually had.
+A failed check is **not** a rotation. It does not alert as one and it does not overwrite either family's last known address, so the next success is compared against the addresses the proxy actually had.
+
+In `both` mode a check fails only when **neither** family answered. One family answering is a successful check, so a v4-only proxy never climbs the ladder — the family that did not answer is reported in the log as a `PARTIAL` line instead.
 
 ## Statistics summary (on `Ctrl+C`)
 
 ```
-=========================================================================
+=======================================================================================================
 
   Session monitoring ran for: 1h0m0s  |  Cycles: 60  |  Total checks: 120
 
-  #     Proxy                                 Checks   Fails   Rotations   IPs     Current IP
-  ---------------------------------------------------------------------------------------------
+  #     Proxy                                 Checks   Fails   Rotations   IPs     Current IPv4
+  -----------------------------------------------------------------------------------------------------
   1     user-session1:pw@gw.example.com:9000  60       0       1           2       88.4.201.3
   2     user-session2:pw@gw.example.com:9001  60       3       0           1       45.12.8.9
 
-  Fleet totals: 1 rotations  |  3 distinct exit IPs  |  3 failed checks
-===============================================================================================
+  Fleet totals: 1 rotations  |  4 distinct exit IPs  |  3 failed checks
+=======================================================================================================
 ```
 
-The opening rule is a fixed 73 columns while the closing one is sized to the table, so the two differ whenever the widest proxy ID in the file is not 14 characters.
+In `both` mode the current-address column becomes two:
 
-**Rotations** counts every change, so a proxy that flips between two IPs shows a high rotation count against a low distinct-IP count — that pattern is a pool cycling a small block, not a pool of many addresses.
+```
+================================================================================================================================================
+
+  Session monitoring ran for: 1h0m0s  |  Cycles: 60  |  Total checks: 120
+
+  #     Proxy                                 Checks   Fails   Rotations   IPs     Current IPv4        Current IPv6
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  1     user-session1:pw@gw.example.com:9000  60       0       1           3       88.4.201.3          2a02:908:1c6::7
+  2     user-session2:pw@gw.example.com:9001  60       3       0           2       45.12.8.9           2a02:908:1c6::9
+
+  Fleet totals: 1 rotations  |  4 distinct exit IPs  |  3 failed checks
+================================================================================================================================================
+```
+
+**Rotations** counts **per family**, so a check that rotated both exits counts two. A proxy that flips between two addresses shows a high rotation count against a low distinct-address count — that pattern is a pool cycling a small block, not a pool of many addresses.
+
+**IPs** is the distinct addresses that proxy showed across every tracked family, summed: in `both` mode a proxy with one v4 exit and two v6 exits shows `3`.
 
 ## The log file
 
 Failures and rotations are appended to `results/session-monitor.log`:
 
 ```
-2026-09-29 09:15:03  ROTATED  user-session1:pw@gw.example.com:9000  45.12.8.7 -> 88.4.201.3  held 1m1s
+2026-09-29 09:15:03  ROTATED  user-session1:pw@gw.example.com:9000  IPv4  45.12.8.7 -> 88.4.201.3  held 1m1s
 2026-09-29 09:16:04  FAIL  user-session2:pw@gw.example.com:9001  i/o timeout
+2026-09-29 09:17:02  PARTIAL  user-session2:pw@gw.example.com:9001  IPv6: [https://v6.ident.me] dial tcp: no route to host
 ```
+
+A `ROTATED` line names the family. A `PARTIAL` line records a family that gave no answer on a check that otherwise succeeded — the reason is logged so you can tell a proxy with no route for that family from an endpoint having a bad day, but it is not an alert and not a rotation.
 
 Append-only across runs, like the downtime monitor's log.
 
@@ -146,6 +207,7 @@ Append-only across runs, like the downtime monitor's log.
 | Key | Purpose | Default |
 |-----|---------|---------|
 | `session_interval_ms` | Prompt default for the gap between cycles | `60000` |
+| `ip_mode` | Prompt default for which address families to look up | `ipv4` |
 | `discord_webhook` | Discord webhook URL; blank = disabled | — |
 
 See [Configuration](../getting-started/configuration.md) for the full file.

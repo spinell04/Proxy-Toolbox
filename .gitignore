@@ -7,4 +7,26 @@ results/*.log
 # and the binary writes this file on first run.
 config.txt
 
+# Built binaries, local and cross-compiled. The release workflow is the only
+# thing that builds the ones people download, and it stamps a version into
+# them; a tracked binary stamped `dev` would sit beside a release asset of the
+# same name that is current, leaving two answers to "which version is this?".
+# Note that .gitignore does nothing for a file already tracked — these needed
+# `git rm --cached` first.
+proxy-toolbox
+proxytoolbox
+proxytoolbox.exe
+proxytoolbox-mac-AppleSiliconCPU
+proxytoolbox-macOS-IntelCPU
+
+# Displaced and in-flight binaries from the auto-updater.
+*.old
+*.new
+
+# Design docs and implementation plans. Working notes, not product
+# documentation — and docs/ is what GitBook publishes, so a plans/ folder here
+# becomes a section on the public site. Note .gitignore does nothing for the
+# four plans already tracked; those need `git rm --cached` once.
+docs/plans/
+
 .DS_Store

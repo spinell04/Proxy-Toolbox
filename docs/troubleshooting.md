@@ -73,6 +73,28 @@ xattr -d com.apple.quarantine proxytoolbox-mac-AppleSiliconCPU
 
 Or open **System Settings → Privacy & Security**, scroll down to the blocked binary notice, and click **Allow Anyway**.
 
+## An `[update]` line at startup
+
+Every auto-update outcome is one line, and then the menu. Nothing here needs fixing — the full mechanism is in [Auto-Update](reference/auto-update.md).
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| `[update] check failed: GitHub API rate limit reached` | Unauthenticated GitHub allows 60 requests an hour per IP, and a shared or NATed address reaches that without you doing anything | Nothing; it checks again next launch |
+| `[update] check failed: …` with no network | Offline, or a captive portal swallowing the connection | Nothing; the 3-second timeout expires and the toolbox starts normally |
+| `[update] failed, staying on vX: checksum mismatch` | The download was interrupted or tampered with | Nothing; the running binary was never touched, and it retries next launch |
+| A `.old` file beside the binary | The previous version. Normally deleted milliseconds after an update, by the new binary's own startup — so finding one means the new version never started | Rename it back over the new binary, and set `auto_update=off` before relaunching. See [Auto-Update](reference/auto-update.md) |
+| The version never changes | `auto_update=off`, or this is a `dev` build | Check `auto_update` in [`config.txt`](getting-started/configuration.md), then check the version in the menu title |
+| Menu title says `Proxy Toolbox dev` | Locally built, not a release download | Expected — `dev` builds never auto-update. Download a [release](https://github.com/spinell04/Proxy-Toolbox/releases/latest) if you want one that does |
+
+The success case is two lines and a restart:
+
+```
+[update] v1.0.1 -> v1.0.2, downloading...
+[update] installed v1.0.2, restarting...
+```
+
+If you rolled back by renaming `.old`, set `auto_update=off` **before** relaunching — otherwise the next launch reinstalls the version you just removed. In the ordinary case `.old` is already gone; roll back by downloading an older release instead.
+
 ## Tests are slow
 
 Increase `workers` in `config.txt`. 40 is a good starting point; try 60–80 if your machine and network can handle it. See [Configuration](getting-started/configuration.md).

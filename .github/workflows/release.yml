@@ -1,0 +1,137 @@
+# Publishes a release on every push to main. The toolbox installs it on next
+# launch — see internal/update and docs/plans/2026-10-01-auto-updater-design.md.
+#
+# Nothing here is a third-party action beyond actions/checkout and
+# actions/setup-go: `gh` is preinstalled on the runner. A release reaches every
+# user's machine unattended, so the set of things that can inject code into one
+# is kept as small as possible.
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      # A README typo must not bump the version and push a ~13 MB download to
+      # every user on their next launch.
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
+      - '.github/**'
+
+# Two pushes in quick succession would otherwise read the same "latest tag" and
+# compute the same next version, and the second release would fail on a tag
+# that already exists. Queued rather than cancelled, so a push is not
+# silently dropped. Note the limit: GitHub keeps at most one run pending per
+# group, so in a burst of three or more pushes the waiting run is replaced
+# and those intermediate commits get no release of their own.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags are needed to work out the next version.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          # Follows the go directive rather than pinning a second time, so
+          # the toolchain here cannot drift from the one the code declares.
+          go-version-file: go.mod
+
+      # The gate. The client update is unattended, so this is the only thing
+      # between a broken commit and every machine running it.
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1 -race
+
+      - name: Compute the next version
+        id: version
+        run: |
+          set -euo pipefail
+
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          if [ -z "$latest" ]; then
+            next="v1.0.0"
+            echo "No existing tag; starting at $next"
+          else
+            IFS=. read -r major minor patch <<< "${latest#v}"
+
+            # The bump marker is read from the pushed commit's message.
+            message=$(git log -1 --pretty=%B)
+            case "$message" in
+              *'[major]'*) major=$((major + 1)); minor=0; patch=0 ;;
+              *'[minor]'*) minor=$((minor + 1)); patch=0 ;;
+              *)           patch=$((patch + 1)) ;;
+            esac
+            next="v${major}.${minor}.${patch}"
+            echo "Latest tag $latest -> $next"
+          fi
+
+          echo "tag=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          CGO_ENABLED: '0'
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          # -trimpath keeps the build reproducible: without it the runner's
+          # absolute paths are embedded, and `git checkout <tag> && go build`
+          # would produce a different hash than the SHA256SUMS published here.
+          # -s -w drop the symbol table and DWARF, saving a few MB on a binary
+          # that every user downloads.
+          flags="-trimpath"
+          ldflags="-s -w -X main.version=${TAG}"
+
+          build() {
+            GOOS=$1 GOARCH=$2 go build $flags -ldflags "$ldflags" -o "dist/$3" .
+            echo "built dist/$3"
+          }
+
+          build windows amd64 proxytoolbox.exe
+          build darwin  arm64 proxytoolbox-mac-AppleSiliconCPU
+          build darwin  amd64 proxytoolbox-macOS-IntelCPU
+
+      # The client refuses to install anything it cannot verify against this
+      # file, so a release without it is a release nobody can install.
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum proxytoolbox.exe \
+                    proxytoolbox-mac-AppleSiliconCPU \
+                    proxytoolbox-macOS-IntelCPU > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --generate-notes \
+            dist/proxytoolbox.exe \
+            dist/proxytoolbox-mac-AppleSiliconCPU \
+            dist/proxytoolbox-macOS-IntelCPU \
+            dist/SHA256SUMS

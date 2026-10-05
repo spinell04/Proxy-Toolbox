@@ -38,6 +38,12 @@ workers=40
 #   https://google.com  -> full HTTPS request
 domain=google.com
 
+# ─── Exit IP lookups ──────────────────────────────────
+# Which address families the IP Uniqueness Test and the Session
+# Monitor ask for: ipv4 | ipv6 | both. Both tools also prompt.
+# `both` is two lookups per check instead of one.
+ip_mode=ipv4
+
 # ─── Monitor intervals (ms) ───────────────────────────
 # Gap between individual proxy checks (not between cycles).
 # Blank / invalid / 0 = built-in default.
@@ -58,6 +64,15 @@ discord_up_threshold=2
 ping_max_latency_ms=
 tm_max_latency_ms=
 bayern_max_latency_ms=
+
+# ─── Auto-update ──────────────────────────────────────
+# On startup, check GitHub for a newer release, install it and
+# restart. The download is verified against the release's SHA-256
+# before anything is replaced, and a failed check never stops the
+# toolbox from starting.
+#   on  = stay current automatically (recommended)
+#   off = never check; pin whatever binary you have
+auto_update=on
 ```
 
 ## Options
@@ -90,6 +105,24 @@ The URL scheme controls the test mode:
 
 If `domain` is empty or missing, the tool asks you to type one each time.
 
+### `ip_mode`
+
+Which **address families** the exit-IP lookups ask for. Applies to the [IP Uniqueness Test](../tools/ip-uniqueness-test.md) and the [Session Monitor](../tools/session-monitor.md); both prompt at the start of a run with this as the pre-filled default, exactly like `domain`.
+
+| Value | Endpoints asked | Lookups per check |
+|-------|-----------------|-------------------|
+| `ipv4` | IPv4-only reflection endpoints | 1 |
+| `ipv6` | IPv6-only reflection endpoints | 1 |
+| `both` | both sets | **2** |
+
+Blank, misspelled, or anything unrecognised falls back to `ipv4`.
+
+**Why the default is `ipv4`.** Well-defined beats permissive, and IPv4 is what most target sites see. It also matters that the endpoint sets are single-family: the tools used to ask dual-stack services, and a dual-stack proxy answered with its IPv4 exit from one endpoint and its IPv6 exit from the next. The same proxy reported two different exits in the same second, which made the uniqueness count meaningless and the session monitor alert continuously.
+
+**Why `both` costs double.** It is two HTTP round trips per check instead of one, against free third-party endpoints. For the IP Uniqueness Test that roughly doubles the run time; for the Session Monitor it doubles the sustained request rate, and the startup banner's `Load : ~N IP lookups per minute` line reflects that. Lengthen the interval to pay for it.
+
+**A proxy that answers only one family is not broken.** In `both` mode a check succeeds if either family answered, and the family that did not is recorded as *unknown for that check* rather than as a change. See [Session Monitor](../tools/session-monitor.md#address-families-and-why-one-going-quiet-is-silent) for why that distinction is load-bearing.
+
 ## Monitor intervals
 
 Each key is the **prompt default** for one monitor — you can still type a different value at runtime. Blank, non-numeric, or non-positive falls back to the built-in default.
@@ -103,7 +136,7 @@ The two are **not** the same unit.
 
 `monitor_interval_ms` is the gap between individual checks — the Downtime Monitor walks the list one proxy at a time, so with N proxies each is revisited every `N × interval`.
 
-`session_interval_ms` is the gap between **cycles**, and a Session Monitor cycle checks every proxy in parallel. The interval is therefore the sampling period directly, but the request volume scales with the list: `proxies ÷ interval` lookups per minute against free third-party IP endpoints. 100 proxies at `60000` is 100 lookups a minute. The startup banner prints both figures.
+`session_interval_ms` is the gap between **cycles**, and a Session Monitor cycle checks every proxy in parallel. The interval is therefore the sampling period directly, but the request volume scales with the list: `proxies × lookups per check ÷ interval` lookups per minute against free third-party IP endpoints. 100 proxies at `60000` is 100 lookups a minute in `ipv4` or `ipv6` mode, and 200 in `both`. The startup banner prints both figures.
 
 The session default is far higher because each check is a full HTTP round trip to an IP-echo endpoint, while a downtime check is a single reachability probe.
 
@@ -134,6 +167,28 @@ These keys gate which proxies get written when you save a filtered list to `prox
 | `bayern_max_latency_ms` | [Bayern Tester](../tools/bayern-tester.md) | Save `200 OK` proxies faster than this (ms) |
 
 A proxy is kept only if its latency is **strictly below** the threshold. Leave a key **blank** (or set `0` / a non-number) to disable that filter — every successful proxy is then offered for saving. The IP Uniqueness Test saves by unique exit IP instead and has no latency key.
+
+## Auto-update
+
+### `auto_update`
+
+Whether the binary checks GitHub for a newer release on startup, installs it and restarts. Default `on`.
+
+| Value | Effect |
+|-------|--------|
+| `on`, `true`, `yes`, `1` | Check on every launch and install anything newer |
+| `off`, `false`, `no`, `0` | Never check; stay on the binary you have |
+
+Case does not matter. **Anything unrecognised takes the default, which is `on`** — unlike `ip_mode`, where a misspelling falls back to a safe value, a misspelling here must not silently disable updates. A binary that stopped updating because of a typo looks exactly like one that is up to date.
+
+Turn it **off** for two reasons:
+
+- **A release broken on your machine.** Without the switch, every launch reinstalls it.
+- **A long-running monitor.** An update restarts the process, and a restart loses the in-memory history the `Ctrl+C` summary is built from. A box running the [Session Monitor](../tools/session-monitor.md) for days should not restart underneath you.
+
+This is the one key read **before** `config.txt` is created on a first ever run — the update check happens before anything else in `main`, because a successful update re-execs and anything done first would be done twice. An absent or unreadable file yields the default rather than a warning, so whether the toolbox starts never hinges on reading an optional setting.
+
+`config.txt` itself is never touched by an update, and neither are `proxyfiles/` or `results/`. See [Auto-Update](../reference/auto-update.md) for the full launch sequence, the `.old` rollback file, and why the checksum is verified before the running binary is renamed.
 
 ## Comments and blank lines
 

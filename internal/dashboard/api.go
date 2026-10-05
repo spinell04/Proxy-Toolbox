@@ -21,6 +21,7 @@ type runInventoryItem struct {
 	ProxyFile string          `json:"proxyFile"`
 	Target    string          `json:"target"`
 	Workers   int             `json:"workers"`
+	IPMode    string          `json:"ipMode"`
 	HasMeta   bool            `json:"hasMeta"`
 	Summary   compare.Summary `json:"summary"`
 }
@@ -207,6 +208,7 @@ func inventoryItem(run compare.Run) runInventoryItem {
 		ProxyFile: run.Meta.ProxyFile,
 		Target:    run.Meta.Target,
 		Workers:   run.Meta.Workers,
+		IPMode:    run.Meta.IPMode,
 		HasMeta:   run.HasMeta(),
 		Summary:   compare.Summarize(run.Results),
 	}

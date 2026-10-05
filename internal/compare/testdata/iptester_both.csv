@@ -1,0 +1,20 @@
+Summary,Value
+Tool,iptester
+Run at,2026-10-01T09:00:00Z
+Proxy file,residential_de.txt
+Target,
+Workers,50
+IP mode,both
+Proxies tested,3
+Errors,1
+Unique IPv4,2 / 2
+Unique IPv6,1 / 2
+Total time,0.9s
+,
+Repeated IP,Family,Times,Lines
+2001:db8::1,IPv6,2,"1, 2"
+,
+#,Proxy,Exit IPv4,Exit IPv6,Latency,Error
+1,alice:pw@1.2.3.4:8080,9.9.9.1,2001:db8::1,120ms,
+2,bob:pw@1.2.3.5:8080,9.9.9.2,2001:db8::1,140ms,
+3,carol:pw@1.2.3.6:8080,,,,dial tcp: i/o timeout

@@ -159,6 +159,14 @@ func TestDefaultConfig_MatchesTheBuiltInDefaults(t *testing.T) {
 		"discord_up_threshold":   strconv.Itoa(config.DefaultUpThreshold),
 		"monitor_interval_ms":    strconv.Itoa(config.DefaultMonitorIntervalMs),
 		"session_interval_ms":    strconv.Itoa(config.DefaultSessionIntervalMs),
+		"ip_mode":                config.DefaultIPMode,
+
+		// Spelled the way the template spells it, not as a Go bool: the
+		// template says "on" because that is what a person reads, and this
+		// test asserts what the file actually contains. It therefore guards
+		// the direction `workers` drifted — someone changing the shipped
+		// value without changing Go — and not a flip of the constant itself.
+		"auto_update": "on",
 	}
 
 	assigned := regexp.MustCompile(`(?m)^([a-z_]+)=(.*)$`)

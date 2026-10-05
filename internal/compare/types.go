@@ -21,6 +21,10 @@ type Meta struct {
 	ProxyFile string
 	Target    string
 	Workers   int
+	// IPMode is "ipv4", "ipv6" or "both", and empty when the export did not
+	// record it — exports made before modes existed, and every tool but
+	// iptester. Empty means unknown, never "the same as the others".
+	IPMode string
 }
 
 // ProxyResult is one proxy's outcome within one run.
@@ -31,7 +35,13 @@ type ProxyResult struct {
 	Outcome   Outcome
 	ErrorRaw  string // verbatim error text from the CSV
 	ErrorKind string // taxonomy bucket, see classifyError
-	ExitIP    string // iptester only, empty elsewhere
+	ExitIP    string // iptester only, empty elsewhere; the legacy single-address view
+	// ExitIPv4 and ExitIPv6 are the family-named columns written since IP modes
+	// existed. An older export's single "Exit IP" column is sorted into whichever
+	// of these its address parses as, so both fields mean the same thing for
+	// every file.
+	ExitIPv4 string
+	ExitIPv6 string
 }
 
 // Run is one parsed CSV.

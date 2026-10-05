@@ -347,3 +347,123 @@ Run at,2026-09-19T14:32:07Z
 			run.Results[1].Status, run.Results[1].Outcome, OutcomeOK)
 	}
 }
+
+// The CSV header is a wire contract. iptester wrote one unlabelled "Exit IP"
+// column before address families were selectable, and the four exports the
+// owner already has in results/ use it, so both spellings must load.
+func TestParseFile_ReadsBothExitIPSpellings(t *testing.T) {
+	legacy, err := ParseFile("testdata/iptester_full.csv")
+	if err != nil {
+		t.Fatalf("ParseFile(legacy): %v", err)
+	}
+	if got := legacy.Results[0].ExitIP; got != "9.9.9.1" {
+		t.Errorf("legacy ExitIP = %q, want %q", got, "9.9.9.1")
+	}
+	// A pre-mode export's single column is sorted by parsing it, so the
+	// family-named fields mean the same thing for every file.
+	if got := legacy.Results[0].ExitIPv4; got != "9.9.9.1" {
+		t.Errorf("legacy ExitIPv4 = %q, want %q", got, "9.9.9.1")
+	}
+	if got := legacy.Results[0].ExitIPv6; got != "" {
+		t.Errorf("legacy ExitIPv6 = %q, want empty", got)
+	}
+
+	both, err := ParseFile("testdata/iptester_both.csv")
+	if err != nil {
+		t.Fatalf("ParseFile(both): %v", err)
+	}
+	if len(both.Results) != 3 {
+		t.Fatalf("got %d results, want 3", len(both.Results))
+	}
+	if got := both.Results[0].ExitIPv4; got != "9.9.9.1" {
+		t.Errorf("ExitIPv4 = %q, want %q", got, "9.9.9.1")
+	}
+	if got := both.Results[0].ExitIPv6; got != "2001:db8::1" {
+		t.Errorf("ExitIPv6 = %q, want %q", got, "2001:db8::1")
+	}
+	// ExitIP keeps working: it is the one-address view, v4 first.
+	if got := both.Results[0].ExitIP; got != "9.9.9.1" {
+		t.Errorf("ExitIP = %q, want %q", got, "9.9.9.1")
+	}
+	// A v6-only export must still populate ExitIP, or the dashboard's exit-IP
+	// column would be empty for a whole class of run.
+	if got := both.Results[1].ExitIP; got != "9.9.9.2" {
+		t.Errorf("ExitIP = %q, want %q", got, "9.9.9.2")
+	}
+	// The errored row carries no address and the four-column repeated-IP table
+	// above it is still skipped rather than read as a result.
+	if got := both.Results[2]; got.ExitIPv4 != "" || got.ExitIPv6 != "" || got.Outcome != OutcomeError {
+		t.Errorf("errored row = %+v, want no addresses and an error outcome", got)
+	}
+}
+
+func TestParseFile_ReadsIPMode(t *testing.T) {
+	both, err := ParseFile("testdata/iptester_both.csv")
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	if both.Meta.IPMode != "both" {
+		t.Errorf("IPMode = %q, want %q", both.Meta.IPMode, "both")
+	}
+}
+
+// Absence is unknown, never "the same as the others". The four exports already
+// in results/ were made before modes existed and must still parse, and the
+// comparability banner must not invent a difference from a blank.
+func TestParseFile_MissingIPModeIsUnknown(t *testing.T) {
+	for _, name := range []string{"iptester_full.csv", "pinger_full.csv", "legacy_no_meta.csv"} {
+		run, err := ParseFile(filepath.Join("testdata", name))
+		if err != nil {
+			t.Fatalf("ParseFile(%s): %v", name, err)
+		}
+		if run.Meta.IPMode != "" {
+			t.Errorf("%s IPMode = %q, want empty for an export that recorded none", name, run.Meta.IPMode)
+		}
+	}
+	// And a file that does record one still parses as before in every other way.
+	run, err := ParseFile("testdata/iptester_full.csv")
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	if !run.HasMeta() {
+		t.Error("HasMeta = false; the mode is not part of what makes metadata present")
+	}
+}
+
+func TestReadExitIPs(t *testing.T) {
+	tests := []struct {
+		name           string
+		legacy, v4, v6 string
+		wantV4, wantV6 string
+		wantSingle     string
+	}{
+		{name: "new two-column form", v4: "9.9.9.1", v6: "2001:db8::1",
+			wantV4: "9.9.9.1", wantV6: "2001:db8::1", wantSingle: "9.9.9.1"},
+		{name: "new v6-only form", v6: "2001:db8::1",
+			wantV6: "2001:db8::1", wantSingle: "2001:db8::1"},
+		{name: "legacy v4", legacy: "9.9.9.1",
+			wantV4: "9.9.9.1", wantSingle: "9.9.9.1"},
+		{name: "legacy v6", legacy: "2001:db8::1",
+			wantV6: "2001:db8::1", wantSingle: "2001:db8::1"},
+		{name: "nothing recorded"},
+		// Not an address at all. Dropping it would lose the column, so it falls
+		// to v4, which is what every pre-mode export was reporting.
+		{name: "legacy junk", legacy: "unknown",
+			wantV4: "unknown", wantSingle: "unknown"},
+		// A file carrying both spellings: the labelled columns win, because they
+		// say which family they are.
+		{name: "labelled columns win", legacy: "9.9.9.9", v4: "9.9.9.1", v6: "2001:db8::1",
+			wantV4: "9.9.9.1", wantV6: "2001:db8::1", wantSingle: "9.9.9.1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := readExitIPs(tt.legacy, tt.v4, tt.v6)
+			if got.V4 != tt.wantV4 || got.V6 != tt.wantV6 {
+				t.Errorf("readExitIPs = %+v, want v4=%q v6=%q", got, tt.wantV4, tt.wantV6)
+			}
+			if got.single() != tt.wantSingle {
+				t.Errorf("single() = %q, want %q", got.single(), tt.wantSingle)
+			}
+		})
+	}
+}

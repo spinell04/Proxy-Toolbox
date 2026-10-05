@@ -19,16 +19,22 @@ import (
 	"proxytoolbox/internal/util"
 )
 
-func printSessionStats(stats []sessionStats, startTime time.Time, cycles int) {
+func printSessionStats(stats []sessionStats, mode IPMode, startTime time.Time, cycles int) {
 	elapsed := time.Since(startTime).Round(time.Second)
+	fams := mode.families()
 	totalChecks, totalFailures, totalRotations := 0, 0, 0
+	// One set, not one per family: a v4 and a v6 string can never collide, and
+	// the figure answers "how many distinct exits did this fleet show".
 	fleetIPs := make(map[string]struct{})
-	for _, s := range stats {
+	for i := range stats {
+		s := &stats[i]
 		totalChecks += s.TotalChecks
 		totalFailures += s.Failures
 		totalRotations += s.Rotations
-		for ip := range s.IPsSeen {
-			fleetIPs[ip] = struct{}{}
+		for _, f := range fams {
+			for ip := range s.state(f.Label).Seen {
+				fleetIPs[ip] = struct{}{}
+			}
 		}
 	}
 
@@ -41,21 +47,35 @@ func printSessionStats(stats []sessionStats, startTime time.Time, cycles int) {
 	// every use *above* its declaration silently resolves to the package
 	// constant instead, which is how the opening and closing rules of this
 	// block came to be different lengths.
-	statsWidth := sessionStatsFixedCols + proxyCol
+	statsWidth := sessionStatsFixedCols + proxyCol + ipColsWidth(mode)
 
 	fmt.Println("\n" + strings.Repeat("=", statsWidth))
 	fmt.Printf("\n  Session monitoring ran for: %s  |  Cycles: %d  |  Total checks: %d\n\n",
 		elapsed, cycles, totalChecks)
 
+	// "IPs" is the distinct addresses this proxy showed across every tracked
+	// family, summed: in both mode a proxy with one v4 exit and three v6 exits
+	// showed four.
 	fmt.Printf("  %-4s  %-*s  %-7s  %-6s  %-10s  %-6s  %s\n",
-		"#", proxyCol, "Proxy", "Checks", "Fails", "Rotations", "IPs", "Current IP")
+		"#", proxyCol, "Proxy", "Checks", "Fails", "Rotations", "IPs",
+		strings.TrimRight(currentHeader(mode), " "))
 	fmt.Printf("  %s\n", strings.Repeat("-", statsWidth-2))
 
-	for i, s := range stats {
-		current := s.CurrentIP
-		if current == "" {
-			current = "-"
+	for i := range stats {
+		s := &stats[i]
+		cells := make([]string, 0, len(fams))
+		distinct := 0
+		for _, f := range fams {
+			st := s.state(f.Label)
+			distinct += len(st.Seen)
+			cur := st.Current
+			if cur == "" {
+				cur = "-"
+			}
+			cells = append(cells, fmt.Sprintf("%-*s", f.Width, cur))
 		}
+		// Trailing pad trimmed: these are the last columns on the line.
+		current := strings.TrimRight(strings.Join(cells, "  "), " ")
 
 		rotStr := strconv.Itoa(s.Rotations)
 		if s.Rotations > 0 {
@@ -68,7 +88,7 @@ func printSessionStats(stats []sessionStats, startTime time.Time, cycles int) {
 
 		fmt.Printf("  %-4d  %-*s  %-7d  %-6s  %-10s  %-6d  %s\n",
 			i+1, proxyCol, s.ProxyID,
-			s.TotalChecks, failStr, rotStr, len(s.IPsSeen), current)
+			s.TotalChecks, failStr, rotStr, distinct, current)
 	}
 
 	fmt.Printf("\n  Fleet totals: %d rotations  |  %d distinct exit IPs  |  %d failed checks\n",
@@ -126,6 +146,8 @@ func RunSessionMonitor() {
 		return
 	}
 
+	mode := promptIPMode(ParseIPMode(cfg.IPMode))
+
 	intervalMs := cfg.SessionIntervalMs
 	fmt.Printf("Interval between checks in ms (default %d): ", intervalMs)
 	intervalInput, _ := reader.ReadString('\n')
@@ -156,13 +178,16 @@ func RunSessionMonitor() {
 	// One cycle checks every proxy in parallel, so the interval *is* the
 	// sampling period: unlike the downtime monitor, a long list does not push
 	// a proxy's next check further out.
-	perMin := float64(len(proxies)) * float64(time.Minute) / float64(interval)
+	// Lookups, not checks: both mode asks each proxy twice per check, so the
+	// figure the free endpoints see is double.
+	perMin := float64(len(proxies)*mode.lookupsPerCheck()) * float64(time.Minute) / float64(interval)
 
 	fmt.Printf("\n")
 	fmt.Printf("File     : %s\n", filePath)
 	fmt.Printf("Proxies  : %d\n", len(proxies))
 	fmt.Printf("Workers  : %d\n", cfg.Workers)
 	fmt.Printf("Interval : %dms per cycle\n", intervalMs)
+	fmt.Printf("IP mode  : %s\n", mode.Label())
 	fmt.Printf("Coverage : every proxy checked every ~%s\n", formatSamplingPeriod(interval))
 	// The IP endpoints are free third-party services. This is the figure that
 	// decides whether they start refusing, so it is on the banner rather than
@@ -177,9 +202,9 @@ func RunSessionMonitor() {
 		liveIDs[i] = p.ID()
 	}
 	proxyCol := sessionProxyCol(liveIDs)
-	liveWidth := sessionFixedCols + proxyCol
-	fmt.Printf("%-8s  %-4s  %-4s  %-*s  %-16s  %-8s  %s\n",
-		"Time", "Cyc", "#", proxyCol, "Proxy", "Exit IP", "Latency", "Status")
+	liveWidth := sessionFixedCols + proxyCol + ipColsWidth(mode)
+	fmt.Printf("%-8s  %-4s  %-4s  %-*s  %s  %-8s  %s\n",
+		"Time", "Cyc", "#", proxyCol, "Proxy", ipColsHeader(mode), "Latency", "Status")
 	fmt.Println(strings.Repeat("-", liveWidth))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -228,7 +253,7 @@ func RunSessionMonitor() {
 			go func() {
 				defer wg.Done()
 				for i := range jobs {
-					results <- checkIP(i, proxies[i])
+					results <- checkIP(i, proxies[i], mode)
 				}
 			}()
 		}
@@ -247,20 +272,20 @@ func RunSessionMonitor() {
 			now := time.Now()
 			st := &stats[i]
 
-			// Snapshot what this check is about to replace.
-			prevIP, heldSince := st.CurrentIP, st.IPSince
+			// Snapshot the failure streak this check is about to end.
 			failingSince, lastErr := st.FailingSince, st.LastErr
 
-			out := evaluateSession(st, result.IP, result.Err, now)
+			out := evaluateSession(st, result, mode, now)
+			rotations := out.rotations()
 
 			ts := now.Format("15:04:05")
 			// Never truncated: see sessionProxyCol.
 			display := st.ProxyID
 
 			if result.Err != nil {
-				fmt.Printf("%-8s  %-4s  %-4s  %-*s  %-16s  %-8s  %s\n",
+				fmt.Printf("%-8s  %-4s  %-4s  %-*s  %s  %-8s  %s\n",
 					ts, fmt.Sprintf("C%d", cycle), fmt.Sprintf("#%d", i+1),
-					proxyCol, display, "-", "-",
+					proxyCol, display, ipCols(mode, ipResult{}), "-",
 					util.Red("FAIL  "+util.ShortenErr(result.Err)))
 
 				if logFile != nil {
@@ -269,19 +294,32 @@ func RunSessionMonitor() {
 				}
 			} else {
 				status := util.Green("OK")
-				if out.IP == ipRotated {
-					status = util.Yellow(fmt.Sprintf("*** ROTATED  %s -> %s", prevIP, result.IP))
+				if len(rotations) > 0 {
+					var parts []string
+					for _, c := range rotations {
+						parts = append(parts, fmt.Sprintf("%s %s -> %s", c.Family, c.PrevIP, c.NewIP))
+					}
+					status = util.Yellow("*** ROTATED  " + strings.Join(parts, "  |  "))
 				}
 
-				fmt.Printf("%-8s  %-4s  %-4s  %-*s  %-16s  %-8s  %s\n",
+				fmt.Printf("%-8s  %-4s  %-4s  %-*s  %s  %-8s  %s\n",
 					ts, fmt.Sprintf("C%d", cycle), fmt.Sprintf("#%d", i+1),
-					proxyCol, display, result.IP,
+					proxyCol, display, ipCols(mode, result),
 					fmt.Sprintf("%dms", result.Elapsed.Milliseconds()), status)
 
-				if logFile != nil && out.IP == ipRotated {
-					fmt.Fprintf(logFile, "%s  ROTATED  %s  %s -> %s  held %s\n",
-						now.Format("2006-01-02 15:04:05"), st.ProxyID,
-						prevIP, result.IP, now.Sub(heldSince).Round(time.Second))
+				if logFile != nil {
+					for _, c := range rotations {
+						fmt.Fprintf(logFile, "%s  ROTATED  %s  %s  %s -> %s  held %s\n",
+							now.Format("2006-01-02 15:04:05"), st.ProxyID,
+							c.Family, c.PrevIP, c.NewIP, c.Held.Round(time.Second))
+					}
+				}
+				// A family that answered nothing is unknown for this check, not
+				// gone: see ipState.observe. Nothing is printed and nothing is
+				// alerted, which is why this loop reads only rotations.
+				if logFile != nil && result.partialErr() != "" {
+					fmt.Fprintf(logFile, "%s  PARTIAL  %s  %s\n",
+						now.Format("2006-01-02 15:04:05"), st.ProxyID, result.partialErr())
 				}
 			}
 
@@ -291,8 +329,8 @@ func RunSessionMonitor() {
 			case healthRecovered:
 				send(buildSessionRecoveredEmbed(p, i+1, now.Sub(failingSince), lastErr, cycle))
 			}
-			if out.IP == ipRotated {
-				send(buildRotationEmbed(p, i+1, prevIP, result.IP, now.Sub(heldSince), cycle))
+			for _, c := range rotations {
+				send(buildRotationEmbed(p, i+1, c, cycle))
 			}
 		}
 
@@ -321,5 +359,5 @@ func RunSessionMonitor() {
 done:
 	signal.Stop(sigCh)
 	webhookWG.Wait()
-	printSessionStats(stats, startTime, cycle-1)
+	printSessionStats(stats, mode, startTime, cycle-1)
 }

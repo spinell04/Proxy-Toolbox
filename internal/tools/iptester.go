@@ -2,8 +2,6 @@ package tools
 
 import (
 	"fmt"
-	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,21 +14,25 @@ import (
 	"proxytoolbox/internal/util"
 )
 
-var ipEndpoints = []string{
-	"https://api.ipify.org",
-	"https://ifconfig.me/ip",
-	"https://icanhazip.com",
-}
-
+// ipResult carries up to two addresses, because one proxy has up to two exits
+// and which one a target sees depends on the target. The pair is its identity.
 type ipResult struct {
 	Index   int
 	ProxyID string // canonical user:pass@host:port
-	IP      string
-	Elapsed time.Duration
+	IPv4    string
+	IPv6    string
+	// Per-family failure, kept even when the other family answered: a check
+	// that returned one address of two succeeded and still has something to
+	// report.
+	ErrV4 error
+	ErrV6 error
+	// Err is set only when no requested family answered. A v4-only proxy asked
+	// for both is not a broken proxy.
 	Err     error
+	Elapsed time.Duration
 }
 
-func checkIP(index int, p proxy.Proxy) ipResult {
+func checkIP(index int, p proxy.Proxy, mode IPMode) ipResult {
 	id := p.ID()
 	parsed, err := url.Parse(p.URL())
 	if err != nil {
@@ -42,36 +44,66 @@ func checkIP(index int, p proxy.Proxy) ipResult {
 		Timeout:   20 * time.Second,
 	}
 
-	offset := rand.Intn(len(ipEndpoints))
 	start := time.Now()
-	var lastErr error
+	var v4, v6 string
+	var errV4, errV6 error
+	if mode.wantsV4() {
+		v4, errV4 = lookupIP(client, ipv4Endpoints, true)
+	}
+	if mode.wantsV6() {
+		v6, errV6 = lookupIP(client, ipv6Endpoints, false)
+	}
+	r := checkOutcome(index, id, v4, v6, errV4, errV6)
+	r.Elapsed = time.Since(start)
+	return r
+}
 
-	for i := 0; i < len(ipEndpoints); i++ {
-		ep := ipEndpoints[(offset+i)%len(ipEndpoints)]
-		resp, err := client.Get(ep)
-		if err != nil {
-			lastErr = fmt.Errorf("[%s] %w", ep, err)
-			continue
+// checkOutcome assembles one check's result, separated from the requests so the
+// rule that decides success is testable on its own.
+//
+// The check fails only when no requested family answered. A v4-only proxy asked
+// for both is not a broken proxy, and failing the check would make every such
+// proxy a permanent entry on the failure ladder.
+func checkOutcome(index int, id, v4, v6 string, errV4, errV6 error) ipResult {
+	r := ipResult{Index: index, ProxyID: id, IPv4: v4, IPv6: v6, ErrV4: errV4, ErrV6: errV6}
+	if r.IPv4 == "" && r.IPv6 == "" {
+		r.Err = familyErr(errV4, errV6)
+	}
+	return r
+}
+
+// familyErr combines the two families' failures onto one line. errors.Join
+// separates with newlines, and both a table row and a log line are one line.
+func familyErr(v4, v6 error) error {
+	switch {
+	case v4 != nil && v6 != nil:
+		return fmt.Errorf("%s: %w; %s: %v", familyV4, v4, familyV6, v6)
+	case v4 != nil:
+		return v4
+	default:
+		return v6
+	}
+}
+
+// partialErr describes a family that failed on a check that otherwise
+// succeeded. Empty when nothing failed.
+func (r ipResult) partialErr() string {
+	var parts []string
+	if r.Err == nil {
+		if r.ErrV4 != nil {
+			parts = append(parts, familyV4+": "+r.ErrV4.Error())
 		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			lastErr = fmt.Errorf("[%s] read error: %w", ep, err)
-			continue
-		}
-		return ipResult{
-			Index:   index,
-			ProxyID: id,
-			IP:      strings.TrimSpace(string(body)),
-			Elapsed: time.Since(start),
+		if r.ErrV6 != nil {
+			parts = append(parts, familyV6+": "+r.ErrV6.Error())
 		}
 	}
-	return ipResult{Index: index, ProxyID: id, Err: lastErr}
+	return strings.Join(parts, "; ")
 }
 
 func RunIPTester() {
 	cfg := config.Load()
-	fmt.Printf("[config] workers=%d\n\n", cfg.Workers)
+	mode := ParseIPMode(cfg.IPMode)
+	fmt.Printf("[config] workers=%d, ip_mode=%s\n\n", cfg.Workers, mode)
 
 	filePath, err := proxy.SelectFile()
 	if err != nil {
@@ -96,11 +128,16 @@ func RunIPTester() {
 		return
 	}
 
+	mode = promptIPMode(mode)
+	fams := mode.families()
+	tableWidth := ipTableWidth - ipV4ColWidth + ipColsWidth(mode)
+
 	fmt.Printf("\nFile    : %s\n", filePath)
 	fmt.Printf("Proxies : %d\n", len(proxies))
-	fmt.Printf("Workers : %d\n\n", cfg.Workers)
-	fmt.Printf("%-5s  %-36s  %-18s  %s\n", "#", "Proxy", "Exit IP", "Latency")
-	fmt.Println(strings.Repeat("-", ipTableWidth))
+	fmt.Printf("Workers : %d\n", cfg.Workers)
+	fmt.Printf("IP mode : %s\n\n", mode.Label())
+	fmt.Printf("%-5s  %-36s  %s  %s\n", "#", "Proxy", ipColsHeader(mode), "Latency")
+	fmt.Println(strings.Repeat("-", tableWidth))
 
 	ids := make([]string, len(proxies))
 	for i, p := range proxies {
@@ -124,7 +161,7 @@ func RunIPTester() {
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				results <- checkIP(i, proxies[i])
+				results <- checkIP(i, proxies[i], mode)
 			}
 		}()
 	}
@@ -134,7 +171,7 @@ func RunIPTester() {
 	go func() {
 		defer wg.Done()
 		gate.runRepeats(func(i int) {
-			results <- checkIP(i, proxies[i])
+			results <- checkIP(i, proxies[i], mode)
 		})
 	}()
 
@@ -149,8 +186,14 @@ func RunIPTester() {
 	}
 	close(jobs)
 
-	ipLines := make(map[string][]int)
-	errors := 0
+	// One map of address -> line numbers per tracked family. Counting across
+	// families would be the bug this mode exists to fix: a v4 and a v6 address
+	// from one gateway are not two distinct exits.
+	seen := make([]map[string][]int, len(fams))
+	for i := range seen {
+		seen[i] = make(map[string][]int)
+	}
+	errorCount := 0
 
 	var ipResults []ipResult
 	for r := range results {
@@ -160,56 +203,63 @@ func RunIPTester() {
 
 		if r.Err != nil {
 			fmt.Printf("%-5d  %-36s  ERROR  %s\n", r.Index+1, display, util.ShortenErr(r.Err))
-			errors++
+			errorCount++
 			continue
 		}
 
-		ipLines[r.IP] = append(ipLines[r.IP], r.Index+1)
-
-		repeated := ""
-		if len(ipLines[r.IP]) > 1 {
-			var prev []string
-			for _, l := range ipLines[r.IP][:len(ipLines[r.IP])-1] {
-				prev = append(prev, strconv.Itoa(l))
+		var repeated []string
+		for fi, f := range fams {
+			ip := f.Get(r)
+			if ip == "" {
+				continue
 			}
-			repeated = fmt.Sprintf("  *** REPEATED x%d (lines: %s)",
-				len(ipLines[r.IP]), strings.Join(prev, ", "))
+			seen[fi][ip] = append(seen[fi][ip], r.Index+1)
+			lines := seen[fi][ip]
+			if len(lines) > 1 {
+				var prev []string
+				for _, l := range lines[:len(lines)-1] {
+					prev = append(prev, strconv.Itoa(l))
+				}
+				repeated = append(repeated, fmt.Sprintf("  *** REPEATED %s x%d (lines: %s)",
+					f.Label, len(lines), strings.Join(prev, ", ")))
+			}
 		}
 
-		fmt.Printf("%-5d  %-36s  %-18s  %5dms%s\n",
-			r.Index+1, display, r.IP, r.Elapsed.Milliseconds(), repeated)
+		fmt.Printf("%-5d  %-36s  %s  %5dms%s\n",
+			r.Index+1, display, ipCols(mode, r), r.Elapsed.Milliseconds(),
+			strings.Join(repeated, ""))
 	}
 
 	elapsed := time.Since(start).Round(time.Millisecond)
-	fmt.Println("\n" + strings.Repeat("-", ipTableWidth))
-	totalOk := len(proxies) - errors
-	unique := len(ipLines)
+	fmt.Println("\n" + strings.Repeat("-", tableWidth))
+	totalOk := len(proxies) - errorCount
 
-	fmt.Printf("\nProxies tested   : %d\n", len(proxies))
-	fmt.Printf("Errors           : %d\n", errors)
-	fmt.Printf("Unique IPs       : %d / %d\n", unique, totalOk)
-	fmt.Printf("Total time       : %s\n", elapsed)
-
-	hasRepeated := false
-	for _, lines := range ipLines {
-		if len(lines) > 1 {
-			hasRepeated = true
-			break
-		}
+	fmt.Printf("\n%-17s: %d\n", "Proxies tested", len(proxies))
+	fmt.Printf("%-17s: %d\n", "Errors", errorCount)
+	// One figure per family, each meaning one definite thing. The denominator is
+	// how many proxies that family actually answered for, not how many checks
+	// succeeded: in both mode a v4-only fleet would otherwise read as a v6 pool
+	// of extraordinary diversity.
+	for fi, f := range fams {
+		fmt.Printf("%-17s: %d / %d\n", "Unique "+f.Label,
+			len(seen[fi]), answered(seen[fi]))
 	}
+	fmt.Printf("%-17s: %s\n", "Total time", elapsed)
 
-	if !hasRepeated && totalOk > 0 {
+	if !anyRepeated(seen) && totalOk > 0 {
 		fmt.Println("\n[OK] All proxies have unique IPs.")
 	} else if totalOk > 0 {
 		fmt.Println("\n[!] Repeated IPs:")
-		for ip, lines := range ipLines {
-			if len(lines) > 1 {
-				var strs []string
-				for _, l := range lines {
-					strs = append(strs, strconv.Itoa(l))
+		for fi, f := range fams {
+			for ip, lines := range seen[fi] {
+				if len(lines) > 1 {
+					var strs []string
+					for _, l := range lines {
+						strs = append(strs, strconv.Itoa(l))
+					}
+					fmt.Printf("    %-4s  %-39s  %d times  ->  lines: %s\n",
+						f.Label, ip, len(lines), strings.Join(strs, ", "))
 				}
-				fmt.Printf("    %-18s  %d times  ->  lines: %s\n",
-					ip, len(lines), strings.Join(strs, ", "))
 			}
 		}
 	}
@@ -223,52 +273,66 @@ func RunIPTester() {
 			ProxyFile: filePath,
 			Target:    "", // iptester has no target; it reports exit IPs
 			Workers:   cfg.Workers,
+			IPMode:    string(mode),
 		}
 		csvRows := meta.Rows()
 		csvRows = append(csvRows, []string{"Proxies tested", strconv.Itoa(len(proxies))})
-		csvRows = append(csvRows, []string{"Errors", strconv.Itoa(errors)})
-		csvRows = append(csvRows, []string{"Unique IPs", fmt.Sprintf("%d / %d", unique, totalOk)})
+		csvRows = append(csvRows, []string{"Errors", strconv.Itoa(errorCount)})
+		for fi, f := range fams {
+			csvRows = append(csvRows, []string{"Unique " + f.Label,
+				fmt.Sprintf("%d / %d", len(seen[fi]), answered(seen[fi]))})
+		}
 		csvRows = append(csvRows, []string{"Total time", elapsed.String()})
 		csvRows = append(csvRows, []string{"", ""})
 
 		// Repeated IPs section
-		csvRows = append(csvRows, []string{"Repeated IP", "Times", "Lines"})
-		for ip, lines := range ipLines {
-			if len(lines) > 1 {
-				var strs []string
-				for _, l := range lines {
-					strs = append(strs, strconv.Itoa(l))
+		csvRows = append(csvRows, []string{"Repeated IP", "Family", "Times", "Lines"})
+		for fi, f := range fams {
+			for ip, lines := range seen[fi] {
+				if len(lines) > 1 {
+					var strs []string
+					for _, l := range lines {
+						strs = append(strs, strconv.Itoa(l))
+					}
+					csvRows = append(csvRows, []string{ip, f.Label, strconv.Itoa(len(lines)), strings.Join(strs, ", ")})
 				}
-				csvRows = append(csvRows, []string{ip, strconv.Itoa(len(lines)), strings.Join(strs, ", ")})
 			}
 		}
 
 		// Per-proxy detail. Needed so the compare dashboard can join this run
-		// against runs from other tools and enrich them with exit IPs.
+		// against runs from other tools and enrich them with exit IPs. The
+		// address columns are named per family — an export that does not say
+		// which family it measured is the ambiguity this change removes.
 		csvRows = append(csvRows, []string{"", ""})
-		csvRows = append(csvRows, []string{"#", "Proxy", "Exit IP", "Latency", "Error"})
+		header := []string{"#", "Proxy"}
+		for _, f := range fams {
+			header = append(header, "Exit "+f.Label)
+		}
+		header = append(header, "Latency", "Error")
+		csvRows = append(csvRows, header)
 		for _, r := range ipResults {
-			errStr := ""
+			errStr := r.partialErr()
 			latStr := ""
 			if r.Err != nil {
 				errStr = r.Err.Error()
 			} else {
 				latStr = fmt.Sprintf("%dms", r.Elapsed.Milliseconds())
 			}
-			csvRows = append(csvRows, []string{
-				strconv.Itoa(r.Index + 1), r.ProxyID, r.IP, latStr, errStr,
-			})
+			row := []string{strconv.Itoa(r.Index + 1), r.ProxyID}
+			for _, f := range fams {
+				row = append(row, f.Get(r))
+			}
+			csvRows = append(csvRows, append(row, latStr, errStr))
 		}
 
-		header := []string{"Summary", "Value"}
-		if err := util.WriteCSV(path, header, csvRows); err != nil {
+		if err := util.WriteCSV(path, []string{"Summary", "Value"}, csvRows); err != nil {
 			fmt.Printf("Error saving: %v\n", err)
 		} else {
 			fmt.Printf("Saved to %s\n", path)
 		}
 	}
 
-	if lines := dedupByIP(ipResults, proxies); len(lines) > 0 {
+	if lines := dedupByExitIdentity(ipResults, proxies, mode); len(lines) > 0 {
 		if path := util.PromptProxyFile("unique exit IPs"); path != "" {
 			if err := util.WriteLines(path, lines); err != nil {
 				fmt.Printf("Error saving proxies: %v\n", err)
@@ -277,4 +341,25 @@ func RunIPTester() {
 			}
 		}
 	}
+}
+
+// answered counts the checks one family produced an address for.
+func answered(seen map[string][]int) int {
+	n := 0
+	for _, lines := range seen {
+		n += len(lines)
+	}
+	return n
+}
+
+// anyRepeated reports whether any family saw one address twice.
+func anyRepeated(seen []map[string][]int) bool {
+	for _, byIP := range seen {
+		for _, lines := range byIP {
+			if len(lines) > 1 {
+				return true
+			}
+		}
+	}
+	return false
 }

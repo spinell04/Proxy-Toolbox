@@ -1,6 +1,6 @@
 # Building from Source
 
-Prefer the pre-built binaries unless you're modifying the code.
+Prefer the [pre-built binaries](https://github.com/spinell04/Proxy-Toolbox/releases/latest) unless you're modifying the code — they keep themselves up to date, and a local build does not.
 
 ## Requirements
 
@@ -17,6 +17,47 @@ go build -o proxytoolbox .
 ```
 
 The first build will download dependencies (`huh` for menus, `tls-client` for TLS fingerprinting, etc.) — expect it to take a minute or two.
+
+## A local build reports `dev` and never updates itself
+
+The version in the menu title comes from a link-time flag that only the release workflow sets. Any build that skips the workflow — `go build`, `go run .`, an IDE — reports `dev`:
+
+```
+Proxy Toolbox dev
+```
+
+A `dev` build is refused by the updater outright. That is the point: without the rule, `go run .` in a checkout would download the published release over your own working copy, at exactly the moment you least want it and with no obvious cause. See [Auto-Update](auto-update.md).
+
+The flip side is that a local build stays whatever you built until you build again. It will not quietly become the release.
+
+## Reproducing a release build
+
+The release workflow builds with these flags, and nothing else:
+
+```bash
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v1.0.0" -o proxytoolbox .
+```
+
+| Flag | Why |
+|---|---|
+| `-X main.version=v1.0.0` | Stamps the version. This is what makes the binary a release rather than a `dev` build, so a binary built with it **will** auto-update. |
+| `-s -w` | Drops the symbol table and DWARF. Worth a few MB on a file every user downloads; release binaries land at roughly 12.5–13.4 MB. |
+| `-trimpath` | Strips absolute source paths out of the binary. |
+| `CGO_ENABLED=0` | Matches the workflow, and keeps cross-compilation toolchain-free. |
+
+`-trimpath` is the one that matters beyond size. Without it the build embeds the absolute path of whatever directory it ran in, so the same commit built on two machines produces two different files and two different digests. With it, two builds of the same target from the same source are **bit-identical**.
+
+That is what makes a release verifiable after the fact. Check out an old tag, rebuild it with the command above substituting that tag, hash the result, and you get the digest that release's `SHA256SUMS` published:
+
+```bash
+git checkout v1.0.0
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
+  -ldflags "-s -w -X main.version=v1.0.0" \
+  -o proxytoolbox-mac-AppleSiliconCPU .
+shasum -a 256 proxytoolbox-mac-AppleSiliconCPU
+```
+
+Drop `-trimpath` and the digest changes, so the reproduction stops proving anything. The same `SHA256SUMS` is what the updater checks a download against before it replaces the running binary.
 
 ## Cross-compiling
 
@@ -61,6 +102,7 @@ Proxy-Toolbox/
 │   ├── dashboard/             # Compare Results: HTTP server, JSON API, embedded web/
 │   ├── proxy/                 # Parse + file selection
 │   ├── tools/                 # The 8 menu tools other than Compare Results
+│   ├── update/                # Startup self-update: check, verify, swap, re-exec
 │   └── util/                  # Colors, export, percentiles, error helpers
 ├── go.mod
 └── go.sum
