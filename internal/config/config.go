@@ -35,6 +35,15 @@ const (
 	// which would otherwise reinstall itself on every launch — and for a box
 	// running a monitor for days that should not be restarted underneath it.
 	DefaultAutoUpdate = true
+
+	// Whether a DNS lookup counts toward the reported latency.
+	//
+	// Off because that is the number people compare against ping, which
+	// resolves once before printing anything and times only the echo. It also
+	// scales badly the other way: the lookup is paid once per host, but latency
+	// is reported per proxy, so including it charges one check for a cost the
+	// other ninety-nine avoided.
+	DefaultMeasureDNS = false
 )
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -61,6 +70,7 @@ type Config struct {
 	TMMaxLatencyMs       int
 	BayernMaxLatencyMs   int
 	AutoUpdate           bool
+	MeasureDNS           bool
 }
 
 // parseLatency returns a positive millisecond threshold, or 0 (no filter) for
@@ -101,6 +111,7 @@ func Load() Config {
 		SessionIntervalMs:    DefaultSessionIntervalMs,
 		IPMode:               DefaultIPMode,
 		AutoUpdate:           DefaultAutoUpdate,
+		MeasureDNS:           DefaultMeasureDNS,
 	}
 	path := basedir.Path(fileName)
 
@@ -158,6 +169,8 @@ func Load() Config {
 			cfg.BayernMaxLatencyMs = parseLatency(val)
 		case "auto_update":
 			cfg.AutoUpdate = parseBool(val, DefaultAutoUpdate)
+		case "measure_dns":
+			cfg.MeasureDNS = parseBool(val, DefaultMeasureDNS)
 		}
 	}
 	return cfg

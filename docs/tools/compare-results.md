@@ -99,6 +99,26 @@ This is the entire reason the exporters were taught to write metadata rows into 
 
 A value that was never recorded is not treated as another opinion — it is set aside and counted separately. The IP Uniqueness Test writes no target at all, for instance, because it doesn't have one, and no tool but the IP Uniqueness Test records an IP mode. An export made before IP modes existed records none either, and that reads as unknown rather than as a difference.
 
+## Runs from before and after DNS was taken out of the latency
+
+The comparability banner cannot catch this one, and it is the one most likely to mislead you.
+
+Until the `measure_dns` key existed, every latency this toolbox recorded included a DNS lookup: the timer wrapped a dial by hostname, which resolves and then connects. Four tools — [Ping Test](ping-test.md), [IP Uniqueness Test](ip-uniqueness-test.md), [Downtime Monitor](proxy-monitor.md) and [Session Monitor](session-monitor.md) — now resolve before the clock starts and report the connect alone.
+
+**So a CSV exported before that change and one exported after are not comparable on absolute latency.** The newer run is lower by roughly the cost of one lookup, and nothing about the proxies moved.
+
+Put side by side in the Timeline or the Cross-tool matrix, that reads as an improvement. It is not one. The gap is largest exactly where it is least expected — on a fast path, where the lookup was most of the number to begin with, a figure can fall from milliseconds to microseconds.
+
+Nothing on screen flags it. The banner compares **Target**, **Proxy file**, **Workers** and **IP mode**, because those are recorded in the CSV's metadata rows; how latency was measured is not, and a file written before the change carries no way to say so. The run date is the only signal, and it is yours to apply.
+
+Three things are unaffected:
+
+- **Outcome rates.** Working and failing counts measure whether a request completed, not how long it took.
+- **Exit IPs and uniqueness.** Unchanged by any of this.
+- **Two runs from the same side of the change.** Both old or both new compare exactly as they always did.
+
+[TM Request Test](tm-request-tester.md) and [Bayern Tester](bayern-tester.md) are also unaffected, for a different reason: they always included the lookup and still do, so their figures never moved. The corollary is that a TM latency and a ping latency were never the same measurement and are now further apart — see [Comparing across tools](#comparing-across-tools).
+
 ## Older exports
 
 CSVs exported before the metadata rows existed still parse and still show up in the inventory. What they lack is the description of the run:

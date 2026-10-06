@@ -167,6 +167,8 @@ func TestDefaultConfig_MatchesTheBuiltInDefaults(t *testing.T) {
 		// the direction `workers` drifted — someone changing the shipped
 		// value without changing Go — and not a flip of the constant itself.
 		"auto_update": "on",
+		// Spelled as the template spells it; see the auto_update note above.
+		"measure_dns": "off",
 	}
 
 	assigned := regexp.MustCompile(`(?m)^([a-z_]+)=(.*)$`)

@@ -23,6 +23,14 @@ Use it to watch a proxy pool over hours or days and get notified the moment it d
 
 Every check is printed live and every failure is appended to `results/monitor.log`.
 
+### The latency column excludes DNS
+
+Addresses are resolved once, before the first check, so a reported latency is a
+connect time rather than a connect plus a name lookup. A monitor left running for
+days keeps the addresses it started with; restarting it picks up a rotated DNS
+record. `measure_dns=on` times the lookup too — see
+[Configuration → `measure_dns`](../getting-started/configuration.md#measure_dns).
+
 ## Reading the live feed
 
 ```

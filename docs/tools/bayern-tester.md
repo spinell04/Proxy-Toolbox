@@ -22,7 +22,15 @@ The target is hard-coded:
 |--------|-------------|
 | `https://fcbayern.com/de/tickets` | Chrome 133 (tlsclient) |
 
-There's no region prompt — just pick your proxy file and go.
+There's no region prompt; pick your proxy file and start.
+
+## The DNS lookup is always inside this number
+
+The **Speed** figure here includes the DNS resolution of `fcbayern.com`. `measure_dns` in [`config.txt`](../getting-started/configuration.md#measure_dns) does **not** affect this tool, in either position — the same as the [TM Request Tester](tm-request-tester.md#the-dns-lookup-is-always-inside-this-number), since both run the same engine.
+
+The four tools that measure reach — [Ping Test](ping-test.md), [IP Uniqueness Test](ip-uniqueness-test.md), [Downtime Monitor](proxy-monitor.md) and [Session Monitor](session-monitor.md) — resolve every address before the clock starts, and by default report a connect time with no lookup in it. **A Bayern latency and a ping latency are therefore not the same measurement**, and the Bayern figure reads higher partly for that reason alone.
+
+Why it stays that way: the dialer this tool uses comes from [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client), and its dialer option controls *how* to dial, not *what address*. Substituting an IP would mean putting it in the URL plus an SNI override and a hand-built `Host` header, which breaks as soon as a redirect crosses hosts — in a tool whose entire point is presenting as a real browser. And it measures a **page fetch**, where a browser pays for resolution too; the other four measure **reach**, where the lookup is overhead.
 
 ## Reading the output
 

@@ -16,6 +16,18 @@ Sends a full, browser-like TLS request to a Ticketmaster region through each pro
 
 A generic HTTPS request is easy for Ticketmaster (and Cloudflare, Akamai, etc.) to fingerprint as "not a real browser." This tool uses [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client) to replicate Chrome's TLS handshake, along with a matching User-Agent and header order. The status code it records is therefore the one returned to a request shaped like Chrome's — which is a different measurement from the Ping Test's, not a prediction of any other outcome.
 
+## The DNS lookup is always inside this number
+
+The **Speed** figure here includes the DNS resolution of the target. `measure_dns` in [`config.txt`](../getting-started/configuration.md#measure_dns) does **not** affect this tool, in either position.
+
+The four tools that measure reach — [Ping Test](ping-test.md), [IP Uniqueness Test](ip-uniqueness-test.md), [Downtime Monitor](proxy-monitor.md) and [Session Monitor](session-monitor.md) — resolve every address before the clock starts, and by default report a connect time with no lookup in it. **So a TM latency and a ping latency are not the same measurement**, and a TM figure will read higher than a ping figure partly for that reason alone.
+
+Two reasons it is built this way.
+
+The first is mechanical. This tool dials through [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client), whose dialer option controls *how* to dial, not *what address*. Substituting an IP would mean putting it in the URL plus an SNI override and a hand-built `Host` header — and that breaks the moment a redirect crosses hosts, in the one tool whose whole purpose is looking like a real browser. The fingerprint is the measurement; bending it to shave a lookup off the number would cost more than it bought.
+
+The second is that it is the right half of the split anyway. This tool measures a **page fetch**, and a browser fetching that page pays for resolution too. The other four measure **reach**, where the lookup is overhead rather than part of what is being measured.
+
 ## Supported regions
 
 When you start the tool, you pick a region from the menu:

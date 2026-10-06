@@ -229,6 +229,12 @@ func RunSessionMonitor() {
 		}()
 	}
 
+	// Resolved once, before the first cycle, so no check is timed through a
+	// lookup. A long run keeps these addresses; restarting picks up a rotated
+	// DNS record.
+	res := runResolver(cfg)
+	warmIP(res, proxies, mode)
+
 	startTime := time.Now()
 	cycle := 0
 
@@ -253,7 +259,7 @@ func RunSessionMonitor() {
 			go func() {
 				defer wg.Done()
 				for i := range jobs {
-					results <- checkIP(i, proxies[i], mode)
+					results <- checkIP(i, proxies[i], mode, res)
 				}
 			}()
 		}

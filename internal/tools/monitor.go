@@ -417,6 +417,12 @@ func RunMonitor() {
 	startTime := time.Now()
 	cycle := 0
 
+	// Resolved once, before the first cycle. A long-running monitor keeps the
+	// same addresses for the life of the run; restarting it picks up a rotated
+	// DNS record.
+	res := runResolver(cfg)
+	warm(res, proxies, target)
+
 	for {
 		cycle++
 		for i, p := range proxies {
@@ -424,7 +430,7 @@ func RunMonitor() {
 				goto done
 			}
 
-			result := pingProxy(i, p, target)
+			result := pingProxy(i, p, target, res)
 			stats[i].TotalChecks++
 			now := time.Now()
 			ts := now.Format("15:04:05")

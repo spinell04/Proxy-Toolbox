@@ -31,6 +31,14 @@ The mirror of that rule: a family answering for the **first** time, however late
 
 This is the rule that makes the whole thing usable. Before single-family endpoints existed the monitor asked dual-stack services, so a dual-stack proxy answered with its v4 exit on one check and its v6 exit on the next — and alerted on roughly half of all consecutive check pairs, continuously, about a proxy that had not changed at all.
 
+### The latency column excludes DNS
+
+Addresses are resolved once, before the first cycle, so a reported latency is the
+exit-IP round trip without a name lookup in it. The cache lives for the run: a
+monitor left up for days keeps the addresses it started with, and restarting it
+picks up a rotated DNS record. `measure_dns=on` times the lookup too — see
+[Configuration → `measure_dns`](../getting-started/configuration.md#measure_dns).
+
 ## The interval, and what it costs (read this)
 
 Unlike the [Downtime Monitor](proxy-monitor.md), the interval here is the gap between **cycles**, and a cycle checks every proxy at once. So the interval *is* the sampling period: a longer list does not push a proxy's next check further out, it just makes each cycle wider.

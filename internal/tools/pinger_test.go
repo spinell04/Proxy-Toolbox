@@ -29,7 +29,7 @@ func TestPingHTTP_DirectDoesNotUseAProxy(t *testing.T) {
 		t.Fatal(`ParseLine("direct") did not produce a direct proxy`)
 	}
 
-	res := pingHTTP(0, p, srv.URL)
+	res := pingHTTP(0, p, srv.URL, nil)
 	if res.Err != nil {
 		t.Fatalf("pingHTTP: %v", res.Err)
 	}
@@ -65,7 +65,7 @@ func TestPingHTTP_ProxiedStillUsesTheProxy(t *testing.T) {
 	}
 
 	// Any absolute target: the request goes to the proxy, not to this host.
-	res := pingHTTP(0, p, "http://example.invalid/")
+	res := pingHTTP(0, p, "http://example.invalid/", nil)
 	if res.Err != nil {
 		t.Fatalf("pingHTTP: %v", res.Err)
 	}
@@ -99,7 +99,7 @@ func TestPingRawTCP_DirectDialsTheTargetWithoutCONNECT(t *testing.T) {
 		t.Fatal(`ParseLine("localhost") did not produce a direct proxy`)
 	}
 
-	res := pingRawTCPTo(0, p, ln.Addr().String())
+	res := pingRawTCPTo(0, p, ln.Addr().String(), nil)
 	if res.Err != nil {
 		t.Fatalf("pingRawTCPTo: %v", res.Err)
 	}
@@ -150,7 +150,7 @@ func TestPingRawTCP_ProxiedStillSendsCONNECT(t *testing.T) {
 		t.Fatalf("ParseLine did not produce a real proxy: %+v", p)
 	}
 
-	pingRawTCPTo(0, p, "example.invalid:80")
+	pingRawTCPTo(0, p, "example.invalid:80", nil)
 
 	select {
 	case got := <-received:

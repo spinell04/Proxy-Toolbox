@@ -29,6 +29,33 @@ A [direct line](../getting-started/proxy-formats.md#direct-lines-no-proxy) in th
 
 `HTTP_PROXY` and `HTTPS_PROXY` are not consulted for those rows, so a baseline is never silently routed through a proxy the environment set.
 
+## What the reported latency covers
+
+The latency in the table is a **connect time**, not a connect plus a DNS lookup. Before the first measurement the run resolves every unique address it is about to dial — untimed — and each check then dials an address out of that cache. The lookup is paid once per host, outside the clock.
+
+It did not used to be. The timer wrapped a dial by hostname, and `net.DialTimeout("tcp", "ticketmaster.com:80", …)` resolves *and then* connects, so both landed in the number. That is why the toolbox and `ping` disagreed, and the gap was widest exactly where the network was fastest — on a sub-millisecond path the lookup was the whole figure:
+
+```
+ping ticketmaster.com     time<1ms
+toolbox, run 1            8ms      <- cold DNS
+toolbox, run 2            4ms      <- OS cache warm
+```
+
+`ping` resolves once before it prints anything and times only the echo. Excluding the lookup is what puts the two on the same footing, and it is also what makes two rows in the same table comparable: the lookup is paid once per host but latency is reported per proxy, so counting it charges one check for a cost the other ninety-nine avoided.
+
+What gets resolved depends on the line. A **proxied** row resolves the **proxy's gateway** — the target is resolved by the proxy, on its own time. A **direct** row resolves the target itself.
+
+Three things worth knowing:
+
+- **An IP literal is never looked up**, so a file of raw addresses never touches a resolver.
+- **A hostname that will not resolve is not fatal.** The address stays a name, that one check dials it by name and therefore includes the lookup, and it fails at dial time with the error it always had.
+- **The cache lives for one run.** A long-running monitor keeps the addresses it started with; restarting it picks up a rotated record.
+
+Set `measure_dns=on` in [`config.txt`](../getting-started/configuration.md#measure_dns) to time the lookup as well, the way a client resolving on every request would. Two things follow from the default being `off`:
+
+- The [TM Request Tester](tm-request-tester.md) and [Bayern Tester](bayern-tester.md) **always** include the lookup and `measure_dns` does not change that, so a TM latency and a ping latency are not the same measurement.
+- Latencies here are **lower than they were before this existed**. An old CSV and a new one are not comparable on absolute latency — see [Compare Results](compare-results.md#runs-from-before-and-after-dns-was-taken-out-of-the-latency).
+
 ## Setting a default domain
 
 You can set a `domain` in [`config.txt`](../getting-started/configuration.md) to pre-fill the prompt:

@@ -64,7 +64,18 @@ session_interval_ms=60000
 #   on  = stay current automatically (recommended)
 #   off = never check; pin whatever binary you have
 auto_update=on
+
+# ─── Latency measurement ─────────────────────────────
+# Whether a DNS lookup counts toward the reported latency.
+#   off  Resolve before timing, then connect to the address. This is what
+#        `ping` reports.
+#   on   Time the lookup too, as a client resolving on every request would.
+# Site Request Test always includes it, whatever this says.
+measure_dns=off
 ```
+
+Full detail, including which tools the last key affects, is in
+[Configuration](docs/getting-started/configuration.md#measure_dns).
 
 ## Proxy Formats
 

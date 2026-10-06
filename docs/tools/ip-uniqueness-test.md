@@ -53,6 +53,16 @@ endpoint is tried — none of them is recorded as an exit IP.
 Tests run in parallel using the `workers` value from
 [`config.txt`](../getting-started/configuration.md).
 
+### The latency column excludes DNS
+
+The run resolves every address it will dial — each proxy's gateway, or the lookup
+endpoints themselves for a direct line — before it measures anything, so the
+reported latency is the round trip without a name resolution in it. `measure_dns=on`
+times the lookup too. See
+[Configuration → `measure_dns`](../getting-started/configuration.md#measure_dns) for
+the mechanism, the per-tool scope, and why latencies here are lower than in CSVs
+exported before the key existed.
+
 ### Direct lines
 
 A [direct line](../getting-started/proxy-formats.md#direct-lines-no-proxy) looks up this machine's own public exit IP, through the same endpoint sets and the same IP mode as every proxy in the file. `HTTP_PROXY` and `HTTPS_PROXY` are not consulted, so the address reported for that row is the one this machine exits from.

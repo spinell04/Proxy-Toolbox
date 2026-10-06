@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -44,19 +45,32 @@ func rawPingTarget(host string) string { return host + ":" + rawPingPort }
 // A thin wrapper over pingRawTCPTo, which takes a full address so a test can
 // point it at a listener on an ephemeral port rather than port 80 of a real
 // machine.
-func pingRawTCP(index int, p proxy.Proxy, host string) pingResult {
-	return pingRawTCPTo(index, p, rawPingTarget(host))
+func pingRawTCP(index int, p proxy.Proxy, host string, res *util.Resolver) pingResult {
+	return pingRawTCPTo(index, p, rawPingTarget(host), res)
 }
 
-func pingRawTCPTo(index int, p proxy.Proxy, target string) pingResult {
+// res carries the run's resolver, or is nil when config says the DNS lookup
+// should count toward the latency. When present the address is resolved before
+// the clock starts, so the number is a connect time rather than a connect plus
+// a lookup.
+func pingRawTCPTo(index int, p proxy.Proxy, target string, res *util.Resolver) pingResult {
 	id := p.ID()
+
+	// Before time.Now(), deliberately. The run pre-resolves every address it
+	// will dial, so this is a cache hit; a miss still costs only this one check.
+	dial := target
+	if res != nil {
+		if resolved, err := res.Resolve(context.Background(), target); err == nil {
+			dial = resolved
+		}
+	}
 
 	// A direct line has no proxy to CONNECT through, so this is a plain TCP
 	// connect to the target. It measures one hop where the proxied path below
 	// measures two — which is the comparison a baseline is for, not a flaw.
 	if p.Direct {
 		start := time.Now()
-		conn, err := net.DialTimeout("tcp", target, 20*time.Second)
+		conn, err := net.DialTimeout("tcp", dial, 20*time.Second)
 		if err != nil {
 			// Returned bare rather than wrapped as "proxy connect": there is no
 			// proxy here, and naming one would misattribute the failure.
@@ -66,7 +80,14 @@ func pingRawTCPTo(index int, p proxy.Proxy, target string) pingResult {
 		return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Status: 0}
 	}
 
+	// The proxied branch dials the proxy, so that is the address resolved
+	// above; the target is resolved by the proxy, on its own time.
 	proxyAddr := net.JoinHostPort(p.Host, p.Port)
+	if res != nil {
+		if resolved, err := res.Resolve(context.Background(), proxyAddr); err == nil {
+			proxyAddr = resolved
+		}
+	}
 
 	start := time.Now()
 	conn, err := net.DialTimeout("tcp", proxyAddr, 20*time.Second)
@@ -96,7 +117,7 @@ func pingRawTCPTo(index int, p proxy.Proxy, target string) pingResult {
 	return pingResult{Index: index, ProxyID: id, Latency: time.Since(start), Status: 0}
 }
 
-func pingHTTP(index int, p proxy.Proxy, target string) pingResult {
+func pingHTTP(index int, p proxy.Proxy, target string, res *util.Resolver) pingResult {
 	id := p.ID()
 
 	// Proxy is left nil for a direct line, which is what makes the request go
@@ -110,6 +131,14 @@ func pingHTTP(index int, p proxy.Proxy, target string) pingResult {
 	// — it yields an empty *url.URL that http.ProxyURL would hand back as a
 	// proxy with no host, so the error check below cannot catch a direct line.
 	transport := &http.Transport{}
+	if res != nil {
+		// Substituting the address here is safe because net/http takes the SNI
+		// name and the Host header from the request URL, never from the dial
+		// address. That is exactly what the TLS fingerprinting client used by
+		// the Site Request Test does not let us do, which is why it still
+		// measures the lookup.
+		transport.DialContext = res.DialContext(&net.Dialer{})
+	}
 	if !p.Direct {
 		parsed, err := url.Parse(p.URL())
 		if err != nil {
@@ -137,11 +166,11 @@ func pingHTTP(index int, p proxy.Proxy, target string) pingResult {
 	return pingResult{Index: index, ProxyID: id, Latency: elapsed, Status: resp.StatusCode}
 }
 
-func pingProxy(index int, p proxy.Proxy, target string) pingResult {
+func pingProxy(index int, p proxy.Proxy, target string, res *util.Resolver) pingResult {
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
-		return pingHTTP(index, p, target)
+		return pingHTTP(index, p, target, res)
 	}
-	return pingRawTCP(index, p, target)
+	return pingRawTCP(index, p, target, res)
 }
 
 func RunPinger() {
@@ -215,13 +244,19 @@ func RunPinger() {
 	jobs := make(chan int, len(proxies))
 	results := make(chan pingResult, len(proxies))
 
+	// Resolved before the first check is timed, so no measurement carries a
+	// lookup. nil when config.measure_dns is on, and then every dial is by name
+	// exactly as it was before this existed.
+	res := runResolver(cfg)
+	warm(res, proxies, target)
+
 	var wg sync.WaitGroup
 	for w := 0; w < cfg.Workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				results <- pingProxy(i, proxies[i], target)
+				results <- pingProxy(i, proxies[i], target, res)
 			}
 		}()
 	}

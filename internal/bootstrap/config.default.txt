@@ -71,3 +71,13 @@ bayern_max_latency_ms=
 # Turn it off if you need a specific version, or on a machine running a
 # monitor for days that must not restart underneath you.
 auto_update=on
+
+# ─── Latency measurement ─────────────────────────────
+# Whether a DNS lookup counts toward the reported latency.
+#   off  Resolve before timing, then connect to the address. This is what
+#        `ping` reports, and what makes two proxies comparable: the lookup is
+#        paid once per host, so counting it charges one check for a cost every
+#        later check avoided.
+#   on   Time the lookup too, as a client resolving on every request would.
+# Site Request Test always includes it; see docs/tools/ping-test.md.
+measure_dns=off

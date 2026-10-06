@@ -51,6 +51,18 @@ A direct line means "make this request with no proxy". The three spellings and w
 | A direct row shows a blank, a `:` or some other odd value in a table, CSV, embed or log | Should not happen. A direct line labels itself with its own line, lowercased, in every surface that shows a proxy | [Open an issue](https://github.com/spinell04/Proxy-Toolbox/issues) naming the tool, the surface and the exact line you used |
 | One line widened the whole Session Monitor proxy column | `localhost:localhost:localhost:localhost` is 39 characters, and the Session Monitor [never truncates that column](tools/session-monitor.md#the-proxy-column-is-never-truncated) — it sizes it to the widest entry in the file | Nothing is wrong. `direct` and `localhost` are 6 and 9 characters and mean the same thing |
 
+## Reported latency
+
+Four tools resolve every address before the clock starts and report the connect alone; the two Site Request Test tools always include the lookup. Which is which, and the `measure_dns` key that controls the first four, are in [Configuration](getting-started/configuration.md#measure_dns).
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| The toolbox reports a different latency from `ping` for the same host | They measure different things. `ping` sends an ICMP echo; the toolbox completes a TCP connection, which is a handshake rather than one packet each way. With `measure_dns=off` the two are close; the remainder is TCP doing more work | Nothing. On a sub-millisecond path the gap is the whole number, because there is no network time to dilute it |
+| A TM or Bayern latency is much higher than a Ping latency for the same proxy | Those two always include the DNS lookup, and they fetch a whole page rather than opening a connection. `measure_dns` does not affect them | Nothing. Compare TM against TM, and Ping against Ping |
+| Latency dropped sharply after updating, with no change to the proxies | Expected. Those four tools used to time a DNS lookup along with the connect and no longer do | Nothing. The new figure is the connect time |
+| An old CSV and a new one disagree in Compare Results, and the newer run looks faster | Same cause, and **the comparability banner cannot catch it** — how latency was measured is not recorded in the metadata rows | [Runs from before and after DNS was taken out of the latency](tools/compare-results.md#runs-from-before-and-after-dns-was-taken-out-of-the-latency). Re-export the old run to compare like with like |
+| The first check of a run is slower than the rest | Only with `measure_dns=on`. The lookup is paid once per host, so the check that pays it carries a cost the rest avoid | Set `measure_dns=off`, which resolves everything before measuring anything |
+
 ## Monitor → Downtime monitor never sends Discord alerts
 
 If the live feed shows failures but no Discord message arrives:

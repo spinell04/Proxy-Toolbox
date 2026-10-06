@@ -73,6 +73,16 @@ bayern_max_latency_ms=
 #   on  = stay current automatically (recommended)
 #   off = never check; pin whatever binary you have
 auto_update=on
+
+# ─── Latency measurement ─────────────────────────────
+# Whether a DNS lookup counts toward the reported latency.
+#   off  Resolve before timing, then connect to the address. This is what
+#        `ping` reports, and what makes two proxies comparable: the lookup is
+#        paid once per host, so counting it charges one check for a cost every
+#        later check avoided.
+#   on   Time the lookup too, as a client resolving on every request would.
+# Site Request Test always includes it; see docs/tools/ping-test.md.
+measure_dns=off
 ```
 
 ## Options
@@ -189,6 +199,61 @@ Turn it **off** for two reasons:
 This is the one key read **before** `config.txt` is created on a first ever run — the update check happens before anything else in `main`, because a successful update re-execs and anything done first would be done twice. An absent or unreadable file yields the default rather than a warning, so whether the toolbox starts never hinges on reading an optional setting.
 
 `config.txt` itself is never touched by an update, and neither are `proxyfiles/` or `results/`. See [Auto-Update](../reference/auto-update.md) for the full launch sequence, the `.old` rollback file, and why the checksum is verified before the running binary is renamed.
+
+## Latency measurement
+
+### `measure_dns`
+
+Whether a **DNS lookup** counts toward the latency a tool reports. Default `off`.
+
+| Value | Effect |
+|-------|--------|
+| `off`, `false`, `no`, `0` | Resolve before the clock starts, then time the connect alone |
+| `on`, `true`, `yes`, `1` | Time the lookup too, as a client resolving on every request would |
+
+Case does not matter, and anything unrecognised takes the default, like every other boolean key.
+
+With `off`, a run resolves **every unique address it is about to dial before it measures anything**, and each check then dials an address out of that cache:
+
+```
+before the run   resolve every unique address the run will dial   (untimed)
+during the run   every check dials an IP from the cache           (no lookup)
+```
+
+Four details follow from that:
+
+- The lookup is **one per host, not one per proxy.** 100 proxies behind a single gateway cost one resolution.
+- The cache lives for **one run**. A monitor left running for days keeps the addresses it started with; restarting it picks up a rotated DNS record.
+- An **IP literal** in the proxy file is never looked up at all.
+- A name that **will not resolve is not fatal.** The address stays a hostname, the check dials it by name, and that one check includes the lookup. A broken name then fails at dial time with the error it always had, rather than failing the whole run before any results exist.
+
+Which address gets resolved depends on the line. For a **proxied** line it is the **proxy's gateway** — the target is resolved by the proxy, on its own time. For a **direct** line it is the target itself.
+
+The difference is not cosmetic. Against a local listener:
+
+```
+measure_dns=on    reported latency : 41.04ms
+measure_dns=off   reported latency : 256µs
+```
+
+**Why the default is `off`.** The lookup is paid **once per host**, but latency is reported **per proxy**. Counting it charges one check for a cost the other ninety-nine avoided, so one row in the table carries a number the rest of the file does not. `off` also lines the reported figure up with what `ping` prints, since `ping` resolves once before printing anything and times only the echo — see [Ping Test](../tools/ping-test.md#what-the-reported-latency-covers).
+
+### Which tools it applies to
+
+| Tool | DNS in the reported latency |
+|---|---|
+| [Ping Test](../tools/ping-test.md) (TCP / HTTP / HTTPS) | Excluded by default; `measure_dns` controls it |
+| [IP Uniqueness Test](../tools/ip-uniqueness-test.md) | Excluded by default; `measure_dns` controls it |
+| [Downtime Monitor](../tools/proxy-monitor.md) | Excluded by default; `measure_dns` controls it |
+| [Session Monitor](../tools/session-monitor.md) | Excluded by default; `measure_dns` controls it |
+| [TM Request Test](../tools/tm-request-tester.md) | **Always included — `measure_dns` has no effect** |
+| [Bayern Tester](../tools/bayern-tester.md) | **Always included — `measure_dns` has no effect** |
+
+The two Site Request Test tools go through the [`bogdanfinn/tls-client`](https://github.com/bogdanfinn/tls-client) library, whose dialer option controls *how* to dial, not *what address*. Excluding the lookup there would mean putting the IP in the URL plus an SNI override and a hand-built `Host` header — which breaks the moment a redirect crosses hosts, in the two tools whose whole purpose is looking like a real browser.
+
+It is also the more defensible half of the split. Those two measure a **page fetch**, where a browser pays for resolution too. The other four measure **reach**, where the lookup is overhead.
+
+> **Latency numbers in those four tools are lower than they were before this key existed.** A CSV exported before the change and one exported after are not comparable on absolute latency. See [Compare Results](../tools/compare-results.md#runs-from-before-and-after-dns-was-taken-out-of-the-latency).
 
 ## Comments and blank lines
 

@@ -177,3 +177,37 @@ func TestAutoUpdateEnabled_AgreesWithLoad(t *testing.T) {
 		})
 	}
 }
+
+// TestLoad_MeasureDNS covers the key and, in the "absent" case, the built-in
+// default itself. The template parity test cannot: it compares the shipped file
+// against a hand-written literal, so flipping DefaultMeasureDNS leaves it
+// passing. This is what makes the default a tested fact.
+func TestLoad_MeasureDNS(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{name: "on", line: "measure_dns=on", want: true},
+		{name: "off", line: "measure_dns=off", want: false},
+		{name: "true", line: "measure_dns=true", want: true},
+		{name: "no", line: "measure_dns=no", want: false},
+		{name: "uppercase ON", line: "measure_dns=ON", want: true},
+		{name: "padded", line: "measure_dns =  on  ", want: true},
+
+		// The default: excluded, so the number matches what `ping` reports and
+		// so one check is not charged for a lookup the other ninety-nine avoid.
+		{name: "absent", line: "", want: false},
+		{name: "blank value", line: "measure_dns=", want: false},
+		{name: "gibberish", line: "measure_dns=sometimes", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := loadFrom(t, tt.line)
+			if cfg.MeasureDNS != tt.want {
+				t.Errorf("MeasureDNS = %v, want %v for %q", cfg.MeasureDNS, tt.want, tt.line)
+			}
+		})
+	}
+}

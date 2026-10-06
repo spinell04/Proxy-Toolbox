@@ -308,7 +308,7 @@ func TestIPClient_DirectDoesNotUseAProxy(t *testing.T) {
 		t.Fatal(`ParseLine("direct") did not produce a direct proxy`)
 	}
 
-	client, err := ipClient(p)
+	client, err := ipClient(p, nil)
 	if err != nil {
 		t.Fatalf("ipClient: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestIPClient_ProxiedStillUsesTheProxy(t *testing.T) {
 		t.Fatalf("ParseLine did not produce a real proxy: %+v", p)
 	}
 
-	client, err := ipClient(p)
+	client, err := ipClient(p, nil)
 	if err != nil {
 		t.Fatalf("ipClient: %v", err)
 	}

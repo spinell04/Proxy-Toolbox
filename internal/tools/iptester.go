@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -44,8 +45,17 @@ type ipResult struct {
 // The parse sits inside the branch because url.Parse("") returns no error — it
 // yields an empty *url.URL that http.ProxyURL would hand back as a proxy with
 // no host, so the error check cannot catch a direct line on its own.
-func ipClient(p proxy.Proxy) (*http.Client, error) {
+// res is the run's resolver, or nil when config says the DNS lookup should
+// count toward the latency.
+func ipClient(p proxy.Proxy, res *util.Resolver) (*http.Client, error) {
 	transport := &http.Transport{}
+	if res != nil {
+		// Safe here and not in the Site Request Test's TLS client: net/http
+		// takes the SNI name and the Host header from the request URL, not from
+		// the dial address, so substituting an IP changes nothing the endpoint
+		// sees.
+		transport.DialContext = res.DialContext(&net.Dialer{})
+	}
 	if !p.Direct {
 		parsed, err := url.Parse(p.URL())
 		if err != nil {
@@ -56,9 +66,9 @@ func ipClient(p proxy.Proxy) (*http.Client, error) {
 	return &http.Client{Transport: transport, Timeout: 20 * time.Second}, nil
 }
 
-func checkIP(index int, p proxy.Proxy, mode IPMode) ipResult {
+func checkIP(index int, p proxy.Proxy, mode IPMode, res *util.Resolver) ipResult {
 	id := p.ID()
-	client, err := ipClient(p)
+	client, err := ipClient(p, res)
 	if err != nil {
 		return ipResult{Index: index, ProxyID: id, Err: err}
 	}
@@ -174,13 +184,18 @@ func RunIPTester() {
 	jobs := make(chan int, len(gate.once))
 	results := make(chan ipResult, len(proxies))
 
+	// Resolved before the first check is timed, so no measurement carries a
+	// lookup. nil when config.measure_dns is on.
+	res := runResolver(cfg)
+	warmIP(res, proxies, mode)
+
 	var wg sync.WaitGroup
 	for w := 0; w < cfg.Workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				results <- checkIP(i, proxies[i], mode)
+				results <- checkIP(i, proxies[i], mode, res)
 			}
 		}()
 	}
@@ -190,7 +205,7 @@ func RunIPTester() {
 	go func() {
 		defer wg.Done()
 		gate.runRepeats(func(i int) {
-			results <- checkIP(i, proxies[i], mode)
+			results <- checkIP(i, proxies[i], mode, res)
 		})
 	}()
 
